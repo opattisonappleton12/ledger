@@ -1,0 +1,3056 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ledger">
+<meta name="theme-color" content="#0a0a0f">
+<title>Ledger — Spend Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #111118;
+    --bg3: #18181f;
+    --border: #23232e;
+    --border2: #2e2e3a;
+    --text: #e8e8f0;
+    --text2: #8888a0;
+    --text3: #44445a;
+    --accent: #c8a96e;
+    --accent2: #9b7a44;
+    --red: #e05c5c;
+    --green: #5cbf8a;
+    --amber: #e0a85c;
+    --safe: padding-top: env(safe-area-inset-top);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'DM Mono', monospace; overflow: hidden; }
+
+  /* App shell */
+  #app { display: flex; flex-direction: column; height: 100%; height: 100dvh; }
+
+  /* Status bar spacer */
+  .status-bar { height: env(safe-area-inset-top, 44px); background: var(--bg); flex-shrink: 0; }
+
+  /* Top bar */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 20px; background: var(--bg); flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar-title { font-family: 'Playfair Display', serif; font-size: 22px; color: var(--accent); letter-spacing: -0.5px; }
+  .topbar-month { font-size: 11px; color: var(--text2); letter-spacing: 2px; text-transform: uppercase; }
+  .topbar-btn {
+    background: none; border: 1px solid var(--border2); color: var(--text2);
+    padding: 6px 14px; border-radius: 20px; font-family: 'DM Mono', monospace;
+    font-size: 11px; letter-spacing: 1px; cursor: pointer; transition: all 0.2s;
+  }
+  .topbar-btn:active { background: var(--border); color: var(--text); }
+
+  /* Scrollable content */
+  #content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: env(safe-area-inset-bottom, 20px); }
+
+  /* Bottom nav */
+  .bottom-nav {
+    display: flex; background: var(--bg2); border-top: 1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom, 0px); flex-shrink: 0;
+  }
+  .nav-tab {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 10px 0 8px; cursor: pointer; transition: all 0.15s; gap: 3px;
+    background: none; border: none; color: var(--text3); font-family: 'DM Mono', monospace;
+  }
+  .nav-tab.active { color: var(--accent); }
+  .nav-tab svg { width: 22px; height: 22px; }
+  .nav-tab span { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; }
+
+  /* Views */
+  .view { display: none; padding: 0; }
+  .view.active { display: block; }
+
+  /* ── OVERVIEW ── */
+  .hero {
+    background: linear-gradient(160deg, #111118 0%, #0d0d14 100%);
+    padding: 24px 20px 20px; border-bottom: 1px solid var(--border);
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: ''; position: absolute; top: -40px; right: -40px;
+    width: 200px; height: 200px; background: radial-gradient(circle, #c8a96e12 0%, transparent 70%);
+    border-radius: 50%;
+  }
+  .hero-label { font-size: 10px; color: var(--text2); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 6px; }
+  .hero-amount { font-family: 'Playfair Display', serif; font-size: 44px; color: var(--text); font-weight: 400; line-height: 1; }
+  .hero-amount span { font-size: 24px; color: var(--accent); vertical-align: top; margin-top: 8px; display: inline-block; margin-right: 2px; }
+  .hero-sub { font-size: 11px; color: var(--text2); margin-top: 8px; }
+  .hero-sub b { color: var(--accent); }
+
+  .kpi-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); border-bottom: 1px solid var(--border); }
+  .kpi { background: var(--bg2); padding: 14px 16px; }
+  .kpi-label { font-size: 9px; color: var(--text3); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
+  .kpi-val { font-family: 'Playfair Display', serif; font-size: 20px; }
+  .kpi-val.red { color: var(--red); }
+  .kpi-val.green { color: var(--green); }
+  .kpi-val.amber { color: var(--amber); }
+  .kpi-sub { font-size: 10px; color: var(--text3); margin-top: 2px; }
+
+  /* Alerts */
+  .alerts-section { padding: 16px 20px; }
+  .section-title { font-size: 9px; letter-spacing: 3px; text-transform: uppercase; color: var(--text3); margin-bottom: 12px; }
+  .alert-card {
+    border-left: 3px solid var(--red); background: var(--bg2); border-radius: 0 8px 8px 0;
+    padding: 12px 14px; margin-bottom: 10px;
+  }
+  .alert-card.amber { border-color: var(--amber); }
+  .alert-card.green { border-color: var(--green); }
+  .alert-title { font-size: 12px; color: var(--text); margin-bottom: 3px; }
+  .alert-desc { font-size: 11px; color: var(--text2); line-height: 1.5; }
+
+  /* Category bars */
+  .cat-section { padding: 16px 20px; }
+  .cat-row { margin-bottom: 14px; }
+  .cat-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
+  .cat-name { font-size: 11px; color: var(--text2); }
+  .cat-amt { font-size: 12px; color: var(--text); }
+  .cat-bar-bg { background: var(--bg3); border-radius: 2px; height: 4px; overflow: hidden; }
+  .cat-bar-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
+
+  /* ── TRENDS ── */
+  .chart-section { padding: 16px 20px; }
+  .chart-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 20px; }
+  .chart-title { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--text3); margin-bottom: 14px; }
+  .bar-chart { display: flex; align-items: flex-end; gap: 4px; height: 100px; }
+  .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+  .bar-fill { width: 100%; border-radius: 3px 3px 0 0; min-height: 2px; transition: height 0.5s ease; cursor: pointer; }
+  .bar-fill:active { opacity: 0.7; }
+  .bar-label { font-size: 8px; color: var(--text3); text-align: center; white-space: nowrap; }
+  .bar-val { font-size: 8px; color: var(--text2); text-align: center; }
+
+  /* Trend table */
+  .trend-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .trend-table th { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--text3); padding: 6px 0; text-align: right; font-weight: 400; }
+  .trend-table th:first-child { text-align: left; }
+  .trend-table td { padding: 9px 0; border-top: 1px solid var(--border); text-align: right; color: var(--text2); }
+  .trend-table td:first-child { text-align: left; color: var(--text); }
+  .trend-table tr:hover td { background: var(--bg3); }
+  .pill { display: inline-block; padding: 1px 6px; border-radius: 10px; font-size: 9px; }
+  .pill.up { background: #e05c5c22; color: var(--red); }
+  .pill.dn { background: #5cbf8a22; color: var(--green); }
+
+  /* ── IMPORT ── */
+  .import-view { padding: 20px; }
+  .import-header { margin-bottom: 24px; }
+  .import-header h2 { font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 400; color: var(--text); margin-bottom: 6px; }
+  .import-header p { font-size: 11px; color: var(--text2); line-height: 1.6; }
+
+  .month-selector { margin-bottom: 20px; }
+  .month-selector label { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--text3); display: block; margin-bottom: 8px; }
+  .month-selector input, .month-selector select {
+    width: 100%; background: var(--bg2); border: 1px solid var(--border2); color: var(--text);
+    padding: 12px 14px; border-radius: 8px; font-family: 'DM Mono', monospace; font-size: 13px;
+    -webkit-appearance: none; appearance: none;
+  }
+  .month-selector input:focus, .month-selector select:focus { outline: 1px solid var(--accent2); }
+
+  .drop-zone {
+    border: 1.5px dashed var(--border2); border-radius: 12px; padding: 32px 20px;
+    text-align: center; cursor: pointer; transition: all 0.2s; margin-bottom: 16px; background: var(--bg2);
+    position: relative; overflow: hidden;
+  }
+  .drop-zone.dragover { border-color: var(--accent); background: #c8a96e08; }
+  .drop-zone input[type=file] { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
+  .drop-zone-icon { font-size: 32px; margin-bottom: 10px; }
+  .drop-zone-title { font-family: 'Playfair Display', serif; font-size: 16px; color: var(--text); margin-bottom: 6px; }
+  .drop-zone-sub { font-size: 11px; color: var(--text2); line-height: 1.5; }
+
+  .paste-area {
+    width: 100%; background: var(--bg2); border: 1px solid var(--border2); color: var(--text);
+    padding: 14px; border-radius: 8px; font-family: 'DM Mono', monospace; font-size: 11px;
+    min-height: 120px; resize: vertical; line-height: 1.5; margin-bottom: 16px;
+  }
+  .paste-area:focus { outline: 1px solid var(--accent2); }
+
+  .tabs-small { display: flex; gap: 1px; background: var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 20px; }
+  .tab-small {
+    flex: 1; padding: 9px; text-align: center; font-size: 10px; letter-spacing: 1.5px;
+    text-transform: uppercase; cursor: pointer; background: var(--bg3); color: var(--text2); border: none;
+    font-family: 'DM Mono', monospace; transition: all 0.15s;
+  }
+  .tab-small.active { background: var(--bg2); color: var(--accent); }
+
+  .btn-primary {
+    width: 100%; background: var(--accent); color: #0a0a0f; border: none; padding: 15px;
+    border-radius: 10px; font-family: 'DM Mono', monospace; font-size: 12px; letter-spacing: 2px;
+    text-transform: uppercase; cursor: pointer; font-weight: 500; transition: all 0.15s;
+  }
+  .btn-primary:active { background: var(--accent2); transform: scale(0.98); }
+  .btn-secondary {
+    width: 100%; background: transparent; color: var(--text2); border: 1px solid var(--border2);
+    padding: 13px; border-radius: 10px; font-family: 'DM Mono', monospace; font-size: 11px;
+    letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; transition: all 0.15s; margin-top: 10px;
+  }
+  .btn-secondary:active { background: var(--border); }
+
+  .import-result {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; margin-bottom: 16px; display: none;
+  }
+  .import-result.show { display: block; }
+  .result-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 11px; }
+  .result-row:last-child { border-bottom: none; }
+
+  /* ── SETTINGS ── */
+  .settings-view { padding: 20px; }
+  .settings-section { margin-bottom: 28px; }
+  .settings-section h3 { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 400; margin-bottom: 16px; color: var(--text); }
+  .setting-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 0; border-bottom: 1px solid var(--border);
+  }
+  .setting-label { font-size: 12px; color: var(--text); }
+  .setting-sub { font-size: 10px; color: var(--text2); margin-top: 2px; }
+  .toggle { position: relative; width: 44px; height: 26px; flex-shrink: 0; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider {
+    position: absolute; cursor: pointer; inset: 0; background: var(--bg3);
+    border-radius: 26px; transition: 0.3s; border: 1px solid var(--border2);
+  }
+  .toggle-slider::before {
+    content: ''; position: absolute; height: 18px; width: 18px; left: 3px; bottom: 3px;
+    background: var(--text2); border-radius: 50%; transition: 0.3s;
+  }
+  .toggle input:checked + .toggle-slider { background: var(--accent2); border-color: var(--accent); }
+  .toggle input:checked + .toggle-slider::before { transform: translateX(18px); background: var(--accent); }
+
+  .budget-input {
+    display: flex; align-items: center; gap: 8px; background: var(--bg2);
+    border: 1px solid var(--border2); border-radius: 8px; padding: 10px 14px;
+  }
+  .budget-input span { color: var(--accent); font-size: 14px; }
+  .budget-input input {
+    background: none; border: none; color: var(--text); font-family: 'DM Mono', monospace;
+    font-size: 14px; width: 100%; outline: none;
+  }
+
+  .data-list { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-top: 12px; }
+  .data-item { display: flex; justify-content: space-between; align-items: center; padding: 13px 16px; border-bottom: 1px solid var(--border); }
+  .data-item:last-child { border-bottom: none; }
+  .data-item-month { font-size: 12px; color: var(--text); }
+  .data-item-total { font-size: 12px; color: var(--accent); }
+  .data-item-del { background: none; border: none; color: var(--text3); font-size: 16px; cursor: pointer; padding: 4px; }
+  .data-item-del:active { color: var(--red); }
+
+  .notif-banner {
+    background: #c8a96e18; border: 1px solid var(--accent2); border-radius: 10px;
+    padding: 14px 16px; margin-bottom: 20px; font-size: 11px; color: var(--text2); line-height: 1.6;
+  }
+  .notif-banner b { color: var(--accent); display: block; margin-bottom: 4px; font-size: 12px; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: calc(env(safe-area-inset-bottom, 20px) + 70px); left: 50%;
+    transform: translateX(-50%) translateY(20px); background: var(--bg3); border: 1px solid var(--accent2);
+    color: var(--text); padding: 10px 20px; border-radius: 20px; font-size: 11px;
+    letter-spacing: 1px; opacity: 0; transition: all 0.3s; pointer-events: none; white-space: nowrap; z-index: 100;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Empty state */
+  .empty { text-align: center; padding: 60px 30px; }
+  .empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
+  .empty-title { font-family: 'Playfair Display', serif; font-size: 20px; color: var(--text2); margin-bottom: 8px; font-weight: 400; }
+  .empty-sub { font-size: 11px; color: var(--text3); line-height: 1.6; }
+
+  /* Scrollbar */
+  #content::-webkit-scrollbar { width: 2px; }
+  #content::-webkit-scrollbar-track { background: transparent; }
+  #content::-webkit-scrollbar-thumb { background: var(--border2); }
+
+  /* Animations */
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .view.active { animation: fadeIn 0.25s ease; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="status-bar"></div>
+
+  <div class="topbar">
+    <div>
+      <div class="topbar-title">Ledger</div>
+      <div class="topbar-month" id="topbar-month">Loading…</div>
+    </div>
+    <button class="topbar-btn" onclick="switchTab('import')">+ Import</button>
+  </div>
+
+  <div id="content">
+    <!-- OVERVIEW -->
+    <div class="view active" id="view-overview">
+      <div id="overview-content"></div>
+    </div>
+
+    <!-- TRENDS -->
+    <div class="view" id="view-trends">
+      <div id="trends-content"></div>
+    </div>
+
+    <!-- IMPORT -->
+    <div class="view" id="view-import">
+      <div class="import-view">
+        <div class="import-header">
+          <h2>Import Data</h2>
+          <p>Drop your bank CSV or paste transaction data. Dates are detected automatically — you can drop a full year at once and it'll split by month.</p>
+        </div>
+
+        <div class="tabs-small">
+          <button class="tab-small active" onclick="setImportTab('file')">CSV File</button>
+          <button class="tab-small" onclick="setImportTab('paste')">Paste CSV</button>
+        </div>
+
+        <div id="import-file-panel">
+          <div class="drop-zone" id="drop-zone">
+            <input type="file" accept=".csv,.txt" id="file-input" onchange="handleFile(this)">
+            <div class="drop-zone-icon">📂</div>
+            <div class="drop-zone-title">Tap to select CSV</div>
+            <div class="drop-zone-sub">Your bank export — Date, Description, Amount columns</div>
+          </div>
+        </div>
+
+        <div id="import-paste-panel" style="display:none">
+          <textarea class="paste-area" id="paste-input" placeholder="Date,Description,Amount&#10;01/03/2026,FENTIMAN ARMS,15.40&#10;02/03/2026,DELIVEROO,22.50&#10;…"></textarea>
+        </div>
+
+        <div class="import-result" id="import-result">
+          <div class="result-row"><span>Transactions read</span><span id="r-count">—</span></div>
+          <div class="result-row"><span>Total spend</span><span id="r-total">—</span></div>
+          <div class="result-row"><span>Months detected</span><span id="r-month">—</span></div>
+          <div class="result-row"><span>Categories found</span><span id="r-cats">—</span></div>
+          <div id="r-month-detail"></div>
+        </div>
+
+        <button class="btn-primary" onclick="processImport()">Process & Save</button>
+        <button class="btn-secondary" onclick="loadSampleData()">Load Sample Data</button>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="view" id="view-settings">
+      <div class="settings-view">
+        <div class="settings-section">
+          <h3>Budgets</h3>
+          <div class="setting-row">
+            <div><div class="setting-label">Monthly total</div><div class="setting-sub">Alert when exceeded</div></div>
+            <div class="budget-input" style="width:130px">
+              <span>£</span><input type="number" id="budget-total" placeholder="2000" onchange="saveBudgets()">
+            </div>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-label">Pubs & Dining</div></div>
+            <div class="budget-input" style="width:130px">
+              <span>£</span><input type="number" id="budget-dining" placeholder="800" onchange="saveBudgets()">
+            </div>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-label">Food Delivery</div></div>
+            <div class="budget-input" style="width:130px">
+              <span>£</span><input type="number" id="budget-delivery" placeholder="150" onchange="saveBudgets()">
+            </div>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-label">Transport</div></div>
+            <div class="budget-input" style="width:130px">
+              <span>£</span><input type="number" id="budget-transport" placeholder="300" onchange="saveBudgets()">
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3>Reminders</h3>
+          <div class="notif-banner">
+            <b>📲 Monthly reminder</b>
+            To receive a notification to import your bank data, tap "Enable Notifications" below. Then add this page to your iPhone Home Screen (Share → Add to Home Screen) for the full app experience.
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-label">Monthly reminder</div><div class="setting-sub">Notify me to import data</div></div>
+            <label class="toggle"><input type="checkbox" id="notif-toggle" onchange="toggleNotifications()"><span class="toggle-slider"></span></label>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-label">Reminder day</div><div class="setting-sub">Day of the month</div></div>
+            <div class="budget-input" style="width:80px">
+              <input type="number" id="notif-day" min="1" max="28" placeholder="5" onchange="saveSettings()" style="text-align:center">
+            </div>
+          </div>
+          <button class="btn-primary" style="margin-top:16px" onclick="requestNotification()">Enable Notifications</button>
+        </div>
+
+        <div class="settings-section">
+          <h3>Saved Data</h3>
+          <div id="data-list-container"></div>
+          <button class="btn-secondary" style="margin-top:16px;color:var(--red);border-color:var(--red)22" onclick="clearAllData()">Clear All Data</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="bottom-nav">
+    <button class="nav-tab active" id="tab-overview" onclick="switchTab('overview')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      <span>Overview</span>
+    </button>
+    <button class="nav-tab" id="tab-trends" onclick="switchTab('trends')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="3,17 8,12 13,15 21,7"/><polyline points="17,7 21,7 21,11"/></svg>
+      <span>Trends</span>
+    </button>
+    <button class="nav-tab" id="tab-import" onclick="switchTab('import')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M3 17v2a2 2 0 002 2h14a2 2 0 002-2v-2"/></svg>
+      <span>Import</span>
+    </button>
+    <button class="nav-tab" id="tab-settings" onclick="switchTab('settings')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      <span>Settings</span>
+    </button>
+  </nav>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── STATE ──
+let state = {
+  months: {},       // { "2026-03": { transactions: [...], totals: {...}, cats: {...} } }
+  budgets: { total: 2000, dining: 800, delivery: 150, transport: 300 },
+  settings: { notifDay: 5, notifEnabled: false },
+};
+
+// ── CATEGORIES ──
+const CATS = {
+  'Transport': { color: '#f5a623', keywords: ['TFL TRAVEL','TRAINLINE','UBER TRIP','BOLT','LIME*RIDE','LIME*PASS','LIME*RIDE COST','SEATFROG','VOI TECH','EASYJET','TAXIWORLD','ZIPCAR','NTS CITY'] },
+  'Food Delivery': { color: '#e67e22', keywords: ['DELIVEROO','UBER EATS','JUST EAT','ROOFOODS LTD','GOPUFF','GORILLAS','GETIR','AMAZON FRESH'] },
+  'Pubs & Dining': { color: '#e05c5c', keywords: [] },
+  'Supermarkets': { color: '#5cbf8a', keywords: ['SAINSBURY','TESCO','WAITROSE','MORRISONS','LIDL','ALDI','ASDA','CO-OP','MARKS AND SPEN','M&S WEST HAMPST','MARKS & SPENCER','WAITROSE'] },
+  'Fast Food': { color: '#f39c12', keywords: ['PRET A MANGER','3CPAYMENT*PRET','MCDONALDS','MCDONALD','CHIPOTLE','ITSU','GDK ','BILTONG'] },
+  'Wine': { color: '#9b59b6', keywords: ['WINEDROPS','HEDONISM','VAGABOND','RENEGADE URBAN WINERY','BBR.COM','SP BORGES','SP ONLINE WINE','INDIGO GREEN'] },
+  'Subscriptions': { color: '#1abc9c', keywords: ['UBER ONE','PRIME VIDEO','AMAZON PRIME','PAYPAL *APPLE.COM','APPLE.COM/BILL','THETIMES.CO.UK','ROOFOODS LTD','EMMA APP','PLAYSTATION','YOURSELFIRST'] },
+  'Shopping': { color: '#8e44ad', keywords: ['AMAZON','AMZNMKTPLACE','AMZN MKTP','EBAY','ASOS','OMNES','12:51 LTD','GLOBALE','HARVEY NICHOLS','HM.COM','NEXT ONLINE','UNIQLO','ZARA','ITX UK','TIKTOK SHOP','BLOOMANDWILD','ARGOS','BOOKING.COM','AIRBNB','MATTRESSNEXTDAY','SP ','ROYAL OPERA','APOLLO VICTORIA'] },
+  'Interest': { color: '#e74c3c', keywords: ['INTEREST CHARGE'] },
+  'Other': { color: '#556688', keywords: [] }
+};
+
+function categorise(desc) {
+  const d = desc.toUpperCase();
+  for (const [cat, conf] of Object.entries(CATS)) {
+    if (cat === 'Pubs & Dining' || cat === 'Other') continue;
+    if (conf.keywords.some(k => d.includes(k))) return cat;
+  }
+  return 'Pubs & Dining';
+}
+
+// ── PERSISTENCE ──
+function saveState() {
+  try { localStorage.setItem('ledger_state', JSON.stringify(state)); } catch(e) {}
+}
+function loadState() {
+  try {
+    const s = localStorage.getItem('ledger_state');
+    if (s) { const parsed = JSON.parse(s); state = { ...state, ...parsed }; }
+  } catch(e) {}
+}
+
+// ── CSV PARSING ──
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const txns = [];
+  let skipFirst = false;
+  if (lines[0] && lines[0].toLowerCase().includes('date') && lines[0].toLowerCase().includes('amount')) skipFirst = true;
+  for (let i = skipFirst ? 1 : 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    // Handle quoted fields
+    const parts = line.match(/(".*?"|[^,]+)(?=\s*,|\s*$)/g) || line.split(',');
+    if (parts.length < 3) continue;
+    const date = parts[0].replace(/"/g,'').trim();
+    const desc = parts.slice(1, parts.length - 1).join(',').replace(/"/g,'').trim();
+    const amount = parseFloat(parts[parts.length - 1].replace(/"/g,'').trim());
+    if (!date || isNaN(amount)) continue;
+    txns.push({ date, desc, amount });
+  }
+  return txns;
+}
+
+// Extract YYYY-MM key from a DD/MM/YYYY date string
+function dateToMonthKey(dateStr) {
+  const m = dateStr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (!m) return null;
+  const day = m[1], month = m[2], yearRaw = m[3];
+  const year = yearRaw.length === 2 ? '20' + yearRaw : yearRaw;
+  return `${year}-${month.padStart(2,'0')}`;
+}
+
+// Split a flat list of transactions into per-month buckets, auto-detected from dates
+function splitByMonth(txns) {
+  const buckets = {};
+  for (const t of txns) {
+    const key = dateToMonthKey(t.date);
+    if (!key) continue;
+    if (!buckets[key]) buckets[key] = [];
+    buckets[key].push(t);
+  }
+  return buckets;
+}
+
+function computeMonth(txns, monthKey) {
+  const debits = txns.filter(t => t.amount > 0 && !t.desc.toUpperCase().includes('PAYMENT RECEIVED') && !t.desc.toUpperCase().includes('CREDIT FOR'));
+  const cats = {};
+  let total = 0;
+  for (const t of debits) {
+    const c = categorise(t.desc);
+    cats[c] = (cats[c] || 0) + t.amount;
+    total += t.amount;
+  }
+  return { transactions: debits, cats, total, raw: txns };
+}
+
+// ── IMPORT ──
+let pendingCSV = null;
+let pendingBuckets = null; // { "2026-03": [...txns] }
+let importTab = 'file';
+
+function setImportTab(tab) {
+  importTab = tab;
+  document.querySelectorAll('.tab-small').forEach((b,i) => b.classList.toggle('active', (i===0&&tab==='file')||(i===1&&tab==='paste')));
+  document.getElementById('import-file-panel').style.display = tab === 'file' ? 'block' : 'none';
+  document.getElementById('import-paste-panel').style.display = tab === 'paste' ? 'block' : 'none';
+}
+
+function handleFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    pendingCSV = e.target.result;
+    previewCSV(pendingCSV);
+    document.querySelector('.drop-zone-title').textContent = file.name;
+    document.querySelector('.drop-zone-icon').textContent = '✅';
+  };
+  reader.readAsText(file);
+}
+
+function previewCSV(text) {
+  const txns = parseCSV(text);
+  pendingBuckets = splitByMonth(txns);
+  const monthKeys = Object.keys(pendingBuckets).sort();
+  const allDebits = txns.filter(t => t.amount > 0 && !t.desc.toUpperCase().includes('PAYMENT RECEIVED') && !t.desc.toUpperCase().includes('CREDIT FOR'));
+  const total = allDebits.reduce((a,t) => a + t.amount, 0);
+
+  // Build per-month preview rows
+  const monthRows = monthKeys.map(k => {
+    const mDebits = pendingBuckets[k].filter(t => t.amount > 0 && !t.desc.toUpperCase().includes('PAYMENT RECEIVED') && !t.desc.toUpperCase().includes('CREDIT FOR'));
+    const mTotal = mDebits.reduce((a,t) => a+t.amount, 0);
+    const overwrite = state.months[k] ? ' <span style="color:var(--amber);font-size:9px">(will overwrite)</span>' : '';
+    return `<div class="result-row"><span>${formatMonthKey(k)}${overwrite}</span><span style="color:var(--accent)">£${mTotal.toFixed(0)} &nbsp;<span style="color:var(--text3)">${mDebits.length} txns</span></span></div>`;
+  }).join('');
+
+  document.getElementById('r-count').textContent = txns.length;
+  document.getElementById('r-total').textContent = '£' + total.toFixed(0);
+  document.getElementById('r-month').textContent = monthKeys.length === 1 ? formatMonthKey(monthKeys[0]) : `${monthKeys.length} months detected`;
+  document.getElementById('r-cats').textContent = new Set(allDebits.map(t => categorise(t.desc))).size;
+  document.getElementById('r-month-detail').innerHTML = monthKeys.length > 1 ? `<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px">${monthRows}</div>` : '';
+  document.getElementById('import-result').classList.add('show');
+}
+
+function processImport() {
+  let csvText = pendingCSV;
+  if (importTab === 'paste') { csvText = document.getElementById('paste-input').value; pendingBuckets = null; }
+  if (!csvText) { showToast('No data to import'); return; }
+
+  // Re-parse if coming from paste tab
+  if (!pendingBuckets) {
+    const txns = parseCSV(csvText);
+    pendingBuckets = splitByMonth(txns);
+  }
+
+  const keys = Object.keys(pendingBuckets);
+  if (!keys.length) { showToast('No valid dates found — check format'); return; }
+
+  let totalTxns = 0;
+  for (const key of keys) {
+    state.months[key] = computeMonth(pendingBuckets[key], key);
+    totalTxns += pendingBuckets[key].length;
+  }
+  saveState();
+  pendingCSV = null;
+  pendingBuckets = null;
+  document.getElementById('paste-input').value = '';
+  document.querySelector('.drop-zone-title').textContent = 'Tap to select CSV';
+  document.querySelector('.drop-zone-icon').textContent = '📂';
+  document.getElementById('import-result').classList.remove('show');
+  showToast(`✓ Imported ${totalTxns} txns across ${keys.length} month${keys.length > 1 ? 's' : ''}`);
+  switchTab('overview');
+}
+
+function loadSampleData() {
+  // Full 2024–2026 dataset from all shared statements
+  // Single combined CSV — auto-detection will split into 36 months
+  const allData = `Date,Description,Amount
+01/01/2024,TRAINLINE.COM,9.70
+02/01/2024,SEATFROG OPS LIMITED,15.00
+03/01/2024,JUST EAT.CO.UK LTD,9.08
+03/01/2024,UBER TRIP,11.94
+03/01/2024,WM MORRISONS STORES,5.50
+04/01/2024,J D WETHERSPOON PLC,14.71
+04/01/2024,MALBOROUGH ARMS,13.60
+04/01/2024,MALBOROUGH ARMS,13.60
+04/01/2024,MALBOROUGH ARMS,30.00
+04/01/2024,TFL TRAVEL CHARGE,3.40
+05/01/2024,CASTLE TOOTING,6.95
+05/01/2024,OLD TOWN 97,32.00
+05/01/2024,TFL TRAVEL CHARGE,5.45
+06/01/2024,THE MARKSMAN,12.70
+06/01/2024,UBER TRIP,12.77
+06/01/2024,WINEDROPS,30.32
+06/01/2024,TFL TRAVEL CHARGE,5.60
+07/01/2024,TESCO STORE,2.10
+07/01/2024,WAITROSE,19.17
+08/01/2024,Howl at the moon,11.50
+08/01/2024,TFL TRAVEL CHARGE,6.20
+08/01/2024,UBER TRIP,14.99
+09/01/2024,TFL TRAVEL CHARGE,6.20
+10/01/2024,M&S WEST HAMPSTEAD,24.40
+10/01/2024,SP NOTED AROMAS 17,23.45
+11/01/2024,ICCO,7.40
+11/01/2024,MALBOROUGH ARMS,42.75
+11/01/2024,RISING SUN,20.25
+11/01/2024,TFL TRAVEL CHARGE,6.20
+12/01/2024,The Black Lion,48.20
+13/01/2024,Infernos,83.80
+13/01/2024,TFL TRAVEL CHARGE,2.80
+13/01/2024,UBER TRIP,19.85
+14/01/2024,HAWES & CURTIS LIMITED,20.00
+14/01/2024,JOHN LEWIS DIRECT,52.00
+15/01/2024,TFL TRAVEL CHARGE,6.80
+16/01/2024,TFL TRAVEL CHARGE,8.10
+17/01/2024,TFL TRAVEL CHARGE,3.70
+18/01/2024,DELIVEROO,14.38
+18/01/2024,TFL TRAVEL CHARGE,3.70
+19/01/2024,GORILLAS,21.64
+20/01/2024,BRAT 64 SHOREDITCH,510.57
+20/01/2024,OWL AND PUSSYCAT,13.70
+20/01/2024,TFL TRAVEL CHARGE,2.80
+21/01/2024,JUST EAT.CO.UK LTD,13.39
+21/01/2024,UBER TRIP,29.90
+22/01/2024,CURTAINS UP,31.18
+22/01/2024,TFL TRAVEL CHARGE,6.80
+22/01/2024,UBER TRIP,18.04
+23/01/2024,EBAY COMMERCE UK,25.54
+23/01/2024,TFL TRAVEL CHARGE,6.80
+24/01/2024,INTEREST CHARGE,54.84
+24/01/2024,JOCKEYCLUB_RACECOURSES,264.50
+24/01/2024,M&S WEST HAMPSTEAD,24.30
+25/01/2024,MALBOROUGH ARMS,71.35
+25/01/2024,MCDONALDS,5.67
+25/01/2024,TFL TRAVEL CHARGE,6.20
+26/01/2024,TESCO STORE,4.18
+27/01/2024,Renegade Urban Winery,46.00
+27/01/2024,TFL TRAVEL CHARGE,2.80
+27/01/2024,WELL & BUCKET,39.80
+28/01/2024,M&S WEST HAMPSTEAD,8.08
+28/01/2024,TESCO STORE,1.00
+28/01/2024,TFL TRAVEL CHARGE,4.60
+28/01/2024,UBER TRIP,5.98
+29/01/2024,TFL TRAVEL CHARGE,6.80
+30/01/2024,ALDI LONDON,8.02
+30/01/2024,TFL TRAVEL CHARGE,8.10
+01/02/2024,OLD TOWN 97,36.19
+01/02/2024,TFL TRAVEL CHARGE,5.15
+01/02/2024,WINDMILL MAYFAIR,14.35
+01/02/2024,YOUNGS.CO.UK,40.65
+02/02/2024,GORILLAS,25.39
+04/02/2024,AMAZON PRIME,8.99
+04/02/2024,PAYPAL *DUSK,112.50
+04/02/2024,PAYPAL *IKEALIMITED,31.75
+05/02/2024,M&S WEST HAMPSTEAD,5.94
+05/02/2024,TFL TRAVEL CHARGE,6.80
+06/02/2024,SEVEN DIALS MARKET BAR,36.70
+06/02/2024,TFL TRAVEL CHARGE,6.20
+07/02/2024,M&S WEST HAMPSTEAD,18.90
+08/02/2024,MALBOROUGH ARMS,63.75
+08/02/2024,MCDONALDS,9.35
+08/02/2024,TFL TRAVEL CHARGE,6.20
+09/02/2024,GOPUFF,19.99
+10/02/2024,ALICE HOUSE WEST HAMPST,42.00
+10/02/2024,AMZNMKTPLACE,27.02
+10/02/2024,Garden Gate,76.35
+10/02/2024,LIME*RIDE,2.95
+11/02/2024,Salt Lounge,52.00
+11/02/2024,UBER EATS,16.59
+12/02/2024,M&S WEST HAMPSTEAD,8.15
+13/02/2024,3CPAYMENT*HIPPODROME CA,13.53
+13/02/2024,Lyric,33.50
+13/02/2024,TFL TRAVEL CHARGE,3.40
+13/02/2024,ZETTLE *KERB SEVEN DIAL,13.50
+14/02/2024,BOLT,14.30
+14/02/2024,UBER EATS,16.17
+15/02/2024,LIDL LON-TOTTENHAM,45.78
+15/02/2024,MALBOROUGH ARMS,21.25
+15/02/2024,MCDONALDS,5.67
+15/02/2024,TFL TRAVEL CHARGE,6.20
+16/02/2024,GOPUFF,19.24
+17/02/2024,LIME*RIDE,6.71
+17/02/2024,TFL TRAVEL CHARGE,7.35
+18/02/2024,LIME*RIDE,7.22
+18/02/2024,TFL TRAVEL CHARGE,4.60
+18/02/2024,UBER EATS,-7.28
+18/02/2024,WAITROSE,1.30
+18/02/2024,ZETTLE *LARYN CAFE BAR,13.60
+19/02/2024,HOTELSCOM,183.60
+19/02/2024,M&S WEST HAMPSTEAD,4.25
+19/02/2024,TFL TRAVEL CHARGE,6.80
+19/02/2024,TRIP.COM,111.00
+20/02/2024,TESCO STORE,6.25
+21/02/2024,WAITROSE,4.58
+22/02/2024,Carpenters Arms,21.45
+22/02/2024,MALBOROUGH ARMS,21.75
+22/02/2024,MCDONALDS,4.77
+22/02/2024,Prince of Wales Feather,21.45
+22/02/2024,Simmons Bar,24.40
+22/02/2024,TFL TRAVEL CHARGE,3.40
+23/02/2024,DELIVEROO,43.19
+23/02/2024,LIME*RIDE,4.30
+23/02/2024,TESCO STORE,18.15
+24/02/2024,ELGIN,55.21
+24/02/2024,INTEREST CHARGE,8.51
+24/02/2024,LIME*RIDE,3.70
+25/02/2024,LIME*RIDE COST,2.36
+26/02/2024,M&S WEST HAMPSTEAD,2.90
+26/02/2024,TFL TRAVEL CHARGE,6.80
+27/02/2024,LYRIC HAMMERSMITH,16.20
+27/02/2024,Swan,6.90
+27/02/2024,TFL TRAVEL CHARGE,6.80
+28/02/2024,EBAY COMMERCE UK,53.49
+28/02/2024,TFL TRAVEL CHARGE,1.90
+28/02/2024,UBER TRIP,8.45
+01/03/2024,UBER ONE,5.99
+02/03/2024,EBAY COMMERCE UK,24.44
+03/03/2024,TFL TRAVEL CHARGE,1.80
+04/03/2024,AMAZON.CO.UK,15.00
+04/03/2024,M&S WEST HAMPSTEAD,8.35
+04/03/2024,TFL TRAVEL CHARGE,6.80
+04/03/2024,UBER EATS,15.94
+05/03/2024,TFL TRAVEL CHARGE,6.20
+05/03/2024,The Porterhouse,43.50
+06/03/2024,GETIR UK,28.56
+06/03/2024,PARIS GRILL,56.05
+06/03/2024,UBER TRIP,16.40
+07/03/2024,BLUE ANCHOR HAMMERSMITH,14.80
+07/03/2024,TFL TRAVEL CHARGE,6.80
+08/03/2024,ASCOT ROYAL ENCLOSURE P,100.00
+08/03/2024,BOLT,15.50
+08/03/2024,ENTHUSE - DONATION,35.00
+08/03/2024,TESCO STORE,6.45
+08/03/2024,TFL TRAVEL CHARGE,3.60
+09/03/2024,TESCO STORE,22.50
+10/03/2024,AMAZON.CO.UK,42.65
+10/03/2024,EBAY COMMERCE UK,93.54
+11/03/2024,TFL TRAVEL CHARGE,6.80
+12/03/2024,SP BORGES & SCOTT,112.85
+13/03/2024,BBR.COM,294.00
+13/03/2024,M&S WEST HAMPSTEAD,8.45
+13/03/2024,TESCO STORE,6.70
+14/03/2024,BELOW SOHO,20.00
+14/03/2024,Jack Horner - W1,14.90
+14/03/2024,MALBOROUGH ARMS,14.25
+14/03/2024,SAINSBURY'S SUPERMARKET,27.55
+14/03/2024,TFL TRAVEL CHARGE,6.20
+14/03/2024,THE GALLERY,18.60
+15/03/2024,FREEMASONS EVENT,8.50
+15/03/2024,MARKS AND SPENCER PADDI,8.95
+15/03/2024,Pride of Paddington,19.05
+15/03/2024,SEATFROG OPS LIMITED,38.00
+15/03/2024,The Retreat,17.70
+15/03/2024,UBER TRIP,11.96
+15/03/2024,WINEDROPS,19.50
+16/03/2024,ASCOT ROYAL ENCLOSURE P,250.00
+16/03/2024,STOREKIT*HAWK'S NEST,86.80
+16/03/2024,TFL TRAVEL CHARGE,1.80
+16/03/2024,UBER TRIP,13.65
+16/03/2024,WINEDROPS,102.99
+17/03/2024,BOLT,16.10
+17/03/2024,GOPUFF,56.63
+18/03/2024,ASCOT ROYAL ENCLOSURE P,155.00
+18/03/2024,TFL TRAVEL CHARGE,8.50
+19/03/2024,Clarence,13.10
+19/03/2024,Red Lion - Mayfair,26.30
+19/03/2024,TFL TRAVEL CHARGE,6.20
+20/03/2024,AMZNMKTPLACE,14.99
+20/03/2024,GASTRONOME LTD,39.90
+20/03/2024,MCDONALDS,4.77
+20/03/2024,TFL TRAVEL CHARGE,5.60
+21/03/2024,Simmons Bar,29.80
+21/03/2024,TFL TRAVEL CHARGE,6.20
+22/03/2024,3CPAYMENT*SSPUKVICTORIA,7.29
+22/03/2024,TFL TRAVEL CHARGE,4.55
+22/03/2024,The Lighthouse,42.20
+23/03/2024,3CPAYMENT*SHOREDITCH HO,22.13
+23/03/2024,ROYAL OAK,17.00
+23/03/2024,SMOKING GOAT SHOREDITCH,47.49
+23/03/2024,TFL TRAVEL CHARGE,8.10
+24/03/2024,INTEREST CHARGE,54.40
+24/03/2024,JG *ATAXIA UK,30.00
+24/03/2024,M&S WEST HAMPSTEAD,17.60
+24/03/2024,UBER TRIP,126.00
+25/03/2024,TFL TRAVEL CHARGE,6.80
+26/03/2024,GASTRONOME LTD,49.80
+26/03/2024,MCDONALDS,5.67
+26/03/2024,TFL TRAVEL CHARGE,8.50
+27/03/2024,TFL TRAVEL CHARGE,6.20
+28/03/2024,7219 - MARLBOROUGH ARMS,29.10
+28/03/2024,MCDONALDS,5.67
+28/03/2024,TFL TRAVEL CHARGE,6.20
+29/03/2024,BOLT,5.30
+01/04/2024,PINTXO,68.04
+01/04/2024,SP ONLINE WINE CLUB,34.95
+01/04/2024,UBER ONE,5.99
+02/04/2024,EBAY COMMERCE UK,188.95
+05/04/2024,BOLT,8.80
+05/04/2024,SR-THE BARLEY MOW,14.80
+05/04/2024,TFL TRAVEL CHARGE,5.60
+05/04/2024,TRAINLINE trainline,18.50
+05/04/2024,WWW.FATSOMA.COM,42.00
+06/04/2024,Garden Gate,13.70
+06/04/2024,LIME*RIDE,3.90
+06/04/2024,MCDONALDS,5.07
+06/04/2024,MITCHELLS & BUTLERS RET,67.80
+06/04/2024,Spaniards,94.50
+07/04/2024,DELIVEROO,60.99
+07/04/2024,PAYPAL *APPLE.COM/BILL,3.49
+08/04/2024,TFL TRAVEL CHARGE,6.20
+09/04/2024,7161-ALBERT VICTORIA,64.65
+09/04/2024,MCDONALD'S,6.77
+09/04/2024,TFL TRAVEL CHARGE,7.95
+10/04/2024,TESCO STORE,9.50
+11/04/2024,TFL TRAVEL CHARGE,6.20
+12/04/2024,8195 - RAILWAY,53.55
+12/04/2024,UBER TRIP,8.15
+13/04/2024,7229 - PLUMBERS ARMS,40.10
+13/04/2024,BOLT,17.90
+13/04/2024,OLD BELL,30.65
+13/04/2024,OLIVOMARE,73.41
+13/04/2024,SR-THE THOMAS CUBITT,14.60
+13/04/2024,UBER TRIP,14.17
+14/04/2024,ALDI LONDON,9.87
+14/04/2024,LIME*RIDE,2.74
+14/04/2024,WAITROSE JOHN BARNES,17.29
+15/04/2024,HORACE.CO,28.00
+15/04/2024,TFL TRAVEL CHARGE,6.80
+16/04/2024,7161-ALBERT VICTORIA,28.10
+16/04/2024,7175 - COLONIES VICTORI,13.35
+16/04/2024,LIME*RIDE,3.85
+16/04/2024,TFL TRAVEL CHARGE,6.20
+18/04/2024,TFL TRAVEL CHARGE,3.40
+18/04/2024,WINEDROPS,19.94
+19/04/2024,BOLT,16.90
+19/04/2024,M&S WEST HAMPSTEAD,6.00
+19/04/2024,TESCO STORE,11.37
+20/04/2024,7190 - GLOBE MARYLEBONE,20.95
+20/04/2024,GASTRONOME LTD,39.90
+20/04/2024,TFL TRAVEL CHARGE,2.80
+20/04/2024,UBER TRIP,13.01
+22/04/2024,M&S WEST HAMPSTEAD,7.76
+22/04/2024,TFL TRAVEL CHARGE,6.80
+23/04/2024,TFL TRAVEL CHARGE,6.80
+24/04/2024,GASTRONOME LTD,43.40
+24/04/2024,INTEREST CHARGE,50.13
+24/04/2024,TFL TRAVEL CHARGE,6.20
+25/04/2024,7219 - MARLBOROUGH ARMS,21.25
+25/04/2024,TESCO STORE,5.65
+25/04/2024,TFL TRAVEL CHARGE,6.20
+26/04/2024,CUBANA WATERLOO,26.00
+26/04/2024,DUKE OF SUSSEX LAMBETH,22.50
+26/04/2024,PRIME VIDEO,3.49
+26/04/2024,PURE INDIAN COOKING,62.71
+26/04/2024,SAINSBURY'S,5.00
+26/04/2024,TFL TRAVEL CHARGE,2.80
+26/04/2024,THE HURLINGHAM CLUB,24.60
+26/04/2024,UBER TRIP,16.58
+27/04/2024,BOLT,12.90
+27/04/2024,Brown Cow,83.50
+27/04/2024,TFL TRAVEL CHARGE,9.20
+27/04/2024,THE ATLAS,28.00
+27/04/2024,The Fulham Mitre,35.44
+28/04/2024,AMAZON.CO.UK,14.69
+28/04/2024,M&S WEST HAMPSTEAD,18.14
+28/04/2024,MCDONALD'S,5.67
+29/04/2024,TFL TRAVEL CHARGE,6.80
+30/04/2024,Carpenters Arms,45.70
+30/04/2024,TFL TRAVEL CHARGE,6.20
+01/05/2024,SP ONLINE WINE CLUB,34.95
+01/05/2024,TESCO STORE,5.00
+01/05/2024,TFL TRAVEL CHARGE,6.80
+01/05/2024,UBER ONE,5.99
+02/05/2024,DH QUEEN CHARLOTTE,14.70
+02/05/2024,ICCO,8.90
+02/05/2024,Jack Horner - W1,69.10
+02/05/2024,TFL TRAVEL CHARGE,6.20
+03/05/2024,DELIVEROO,19.80
+04/05/2024,ALDI LONDON,3.99
+04/05/2024,SAINSBURY'S SUPERMARKET,10.50
+04/05/2024,UBER TRIP,6.06
+04/05/2024,WAITROSE JOHN BARNES,44.53
+05/05/2024,SAINSBURY'S,5.00
+05/05/2024,TFL TRAVEL CHARGE,1.80
+05/05/2024,THE PEOPLES PARK TAVERN,59.60
+05/05/2024,The Cat and Mutton,60.75
+05/05/2024,UBER TRIP,25.24
+05/05/2024,WWW.LAINE.CO.UK,18.15
+06/05/2024,ALICE HOUSE WEST HAMPST,39.00
+06/05/2024,TFL TRAVEL CHARGE,2.80
+07/05/2024,TFL TRAVEL CHARGE,6.80
+08/05/2024,M&S WEST HAMPSTEAD,7.55
+08/05/2024,SAINSBURY'S,7.26
+09/05/2024,TFL TRAVEL CHARGE,5.15
+09/05/2024,WINEDROPS,30.00
+11/05/2024,M&S WEST HAMPSTEAD,10.40
+11/05/2024,TFL TRAVEL CHARGE,2.80
+11/05/2024,THE ATLAS,29.20
+12/05/2024,EBAY COMMERCE UK,26.23
+12/05/2024,M&S WEST HAMPSTEAD,27.25
+12/05/2024,TFL TRAVEL CHARGE,1.80
+13/05/2024,TFL TRAVEL CHARGE,6.20
+14/05/2024,GASTRONOME LTD,56.70
+14/05/2024,LIME*RIDE,3.07
+14/05/2024,TFL TRAVEL CHARGE,6.20
+16/05/2024,Jack Horner - W1,100.75
+16/05/2024,TFL TRAVEL CHARGE,3.40
+17/05/2024,AMAZON FRESH,12.44
+17/05/2024,MCDONALDS,8.56
+17/05/2024,PRIME VIDEO,8.48
+17/05/2024,TFL TRAVEL CHARGE,2.80
+17/05/2024,THE HURLINGHAM CLUB RAN,14.60
+17/05/2024,UBER TRIP,29.79
+18/05/2024,THE ATLAS,14.60
+18/05/2024,The Troubadour,111.66
+18/05/2024,UBER EATS,41.48
+18/05/2024,UBER TRIP,18.56
+19/05/2024,AMZN MKTP UK,71.07
+19/05/2024,PAYPAL *MYOPTIQUEGR,91.35
+19/05/2024,UBER TRIP,15.16
+20/05/2024,TESCO STORE,12.55
+20/05/2024,TFL TRAVEL CHARGE,6.80
+21/05/2024,TFL TRAVEL CHARGE,6.80
+21/05/2024,WINEDROPS,17.50
+22/05/2024,DELIVEROO 207008,20.11
+23/05/2024,7219 - MARLBOROUGH ARMS,36.25
+23/05/2024,Simmons Bar,18.60
+23/05/2024,TFL TRAVEL CHARGE,6.20
+23/05/2024,UBER TRIP,10.86
+24/05/2024,BRITISH AIRWAYS,345.69
+24/05/2024,GOPUFF,37.05
+24/05/2024,INTEREST CHARGE,54.89
+24/05/2024,M&S WEST HAMPSTEAD,15.15
+24/05/2024,MEMBERSHIP FEE,650.00
+25/05/2024,LIME*PASS,3.99
+25/05/2024,MUNAL TANDOORI,29.70
+25/05/2024,RIDING HOUSE FITZROVIA,19.00
+25/05/2024,TFL TRAVEL CHARGE,8.50
+25/05/2024,Tequila Mockingbird,28.80
+26/05/2024,ROOFOODS LTD,16.98
+26/05/2024,UBER TRIP,16.43
+27/05/2024,BOOKINGUK HOTEL,204.92
+28/05/2024,POST OFFICE LONDON,7.95
+28/05/2024,TESCO STORE,3.65
+28/05/2024,TFL TRAVEL CHARGE,6.80
+29/05/2024,TESCO STORE,15.25
+29/05/2024,WINEDROPS,31.49
+30/05/2024,7219 - MARLBOROUGH ARMS,43.40
+30/05/2024,TFL TRAVEL CHARGE,6.20
+31/05/2024,5751 -ALEXANDRA,13.40
+31/05/2024,UBER EATS,27.16
+31/05/2024,WINEDROPS,18.00
+01/06/2024,5751 -ALEXANDRA,42.40
+01/06/2024,GAIL'S SOUTHEND GREEN,9.20
+01/06/2024,Garden Gate,7.25
+01/06/2024,LIVELYHOOD VENUES,24.40
+01/06/2024,MITCHELLS & BUTLERS RET,29.00
+01/06/2024,TFL TRAVEL CHARGE,7.40
+01/06/2024,UBER ONE,5.99
+02/06/2024,SD PIZZERIA LTD,41.70
+03/06/2024,TFL TRAVEL CHARGE,6.80
+04/06/2024,AIRBNB * HM8Y5FH8Z4,272.65
+04/06/2024,KINGS PHARMACY,19.80
+04/06/2024,TFL TRAVEL CHARGE,6.80
+04/06/2024,WINEDROPS,29.98
+05/06/2024,DUKE OF SUSSEX LAMBETH,51.50
+05/06/2024,SUMUP*TW BARBERS,30.00
+05/06/2024,TFL TRAVEL CHARGE,5.60
+06/06/2024,HAMPSTEAD CONNECT,10.34
+06/06/2024,TFL TRAVEL CHARGE,6.80
+06/06/2024,UBER TRIP,7.23
+06/06/2024,WAITROSE,7.50
+07/06/2024,ASDA STORES,5.90
+08/06/2024,Porthcothan Bay Stores,8.50
+10/06/2024,CUV* MOTOR INSURANCE,19.71
+11/06/2024,WINEDROPS,31.00
+12/06/2024,AIRBNB * HMX248JHB9,523.62
+12/06/2024,LIME*RIDE,4.45
+12/06/2024,M&S WEST HAMPSTEAD,15.90
+13/06/2024,7186 - FITZROVIA BLOOMS,21.70
+13/06/2024,MARKET HALL OXFORD STRE,25.00
+13/06/2024,TFL TRAVEL CHARGE,6.20
+14/06/2024,AMAZON.CO.UK,15.69
+14/06/2024,TFL TRAVEL CHARGE,4.70
+14/06/2024,THE HURLINGHAM CLUB RAN,24.10
+14/06/2024,White Horse,21.60
+15/06/2024,CASTLE STREET FLOWERS,30.00
+15/06/2024,SECRETTS FARM SHOP,24.24
+15/06/2024,The Crown Inn,93.94
+15/06/2024,WAITROSE,7.05
+17/06/2024,Jack Horner - W1,64.60
+17/06/2024,TFL TRAVEL CHARGE,6.20
+18/06/2024,TESCO STORE,10.15
+18/06/2024,TFL TRAVEL CHARGE,6.80
+19/06/2024,TFL TRAVEL CHARGE,6.80
+19/06/2024,TOTTENHAM COURT ROAD LE,10.48
+20/06/2024,Prince Regent,96.50
+20/06/2024,TFL TRAVEL CHARGE,6.20
+21/06/2024,SAINSBURY'S,11.45
+21/06/2024,The Black Lion,13.00
+22/06/2024,1711 by Ascot,46.30
+22/06/2024,ROOFOODS LTD,22.19
+22/06/2024,SODEXO ASCOT,19.50
+22/06/2024,TFL TRAVEL CHARGE,2.80
+22/06/2024,TRAINLINE trainline,13.75
+22/06/2024,W H SMITH,20.99
+22/06/2024,ZETTLE *BEDALES,108.10
+23/06/2024,UBER EATS,20.18
+24/06/2024,INTEREST CHARGE,14.83
+24/06/2024,M&S WEST HAMPSTEAD,4.50
+24/06/2024,PAYPAL *APPLE.COM/BILL,2.49
+24/06/2024,TFL TRAVEL CHARGE,6.80
+25/06/2024,PRESTO CAFE,5.70
+25/06/2024,TFL TRAVEL CHARGE,8.50
+26/06/2024,PAYPAL *ORBANARON26,3.25
+27/06/2024,12:51 LTD,356.06
+27/06/2024,LIME*RIDE,9.57
+27/06/2024,Pig and Butcher,14.00
+27/06/2024,TFL TRAVEL CHARGE,3.40
+28/06/2024,BOLT,14.50
+28/06/2024,Court,26.80
+28/06/2024,LIME*RIDE,5.14
+28/06/2024,MARKS AND SPENCER PADDI,9.75
+28/06/2024,TRAINLINE trainline,62.00
+28/06/2024,UBER TRIP,25.46
+29/06/2024,TESCO STORE,29.71
+29/06/2024,UBER TRIP,10.21
+30/06/2024,HARVEY NICHOLS,62.15
+30/06/2024,ROOFOODS LTD,20.48
+30/06/2024,TRAINLINE trainline,53.10
+30/06/2024,UBER TRIP,20.03
+01/07/2024,M&S WEST HAMPSTEAD,10.18
+01/07/2024,PRIME VIDEO,16.99
+01/07/2024,TESCO STORE,4.85
+01/07/2024,UBER ONE,5.99
+02/07/2024,LIME*RIDE,10.55
+02/07/2024,TESCO STORE,7.62
+02/07/2024,TFL TRAVEL CHARGE,3.40
+02/07/2024,The Carpenters Arms,13.60
+03/07/2024,JUST EAT.CO.UK LTD,8.06
+03/07/2024,SAINSBURY'S,7.10
+04/07/2024,7219 - MARLBOROUGH ARMS,30.70
+04/07/2024,Phoenix,33.05
+04/07/2024,TFL TRAVEL CHARGE,3.40
+05/07/2024,LIME*RIDE,7.96
+05/07/2024,OLD TOWN 97,207.90
+06/07/2024,AIRBNB * HM8Y5FH8Z4,251.18
+06/07/2024,GOPUFF,25.99
+06/07/2024,LIME*RIDE,7.29
+07/07/2024,TESCO STORE,11.05
+08/07/2024,AMZNMKTPLACE,13.28
+08/07/2024,BOOTS THE CHEMIST,11.00
+08/07/2024,TESCO STORE,2.90
+08/07/2024,TFL TRAVEL CHARGE,6.80
+08/07/2024,TK MAXX 359,42.16
+10/07/2024,Brown Cow,37.95
+10/07/2024,LIME*PASS,3.99
+10/07/2024,TFL TRAVEL CHARGE,6.45
+10/07/2024,THE HURLINGHAM CLUB RAN,55.50
+11/07/2024,Carpenters Arms,14.60
+11/07/2024,TFL TRAVEL CHARGE,6.20
+11/07/2024,UBER TRIP,15.47
+12/07/2024,Krystals Fulham,24.48
+12/07/2024,SAINSBURY'S SUPERMARKET,7.18
+12/07/2024,TFL TRAVEL CHARGE,3.40
+12/07/2024,White Horse,44.50
+13/07/2024,HALF MOON PUTNEY,36.45
+13/07/2024,LIME*PASS,3.99
+13/07/2024,SAINSBURY'S,5.00
+13/07/2024,TFL TRAVEL CHARGE,4.60
+13/07/2024,UBER TRIP,15.42
+13/07/2024,YOUNGS.CO.UK,42.10
+14/07/2024,AMZNMKTPLACE,6.96
+14/07/2024,ROOFOODS LTD,37.78
+14/07/2024,TFL TRAVEL CHARGE,2.80
+15/07/2024,SAINSBURY'S,6.85
+15/07/2024,UBER EATS,32.44
+16/07/2024,LIME*RIDE,3.90
+16/07/2024,M&S WEST HAMPSTEAD,11.05
+16/07/2024,TFL TRAVEL CHARGE,6.80
+17/07/2024,TFL TRAVEL CHARGE,6.80
+18/07/2024,Jack Horner - W1,69.75
+18/07/2024,TFL TRAVEL CHARGE,6.20
+19/07/2024,ALICE HOUSE,52.00
+19/07/2024,SAINSBURY'S,6.85
+20/07/2024,3CPAYMENT*PRET A MANGER,2.99
+20/07/2024,BOOTS THE CHEMIST,5.50
+20/07/2024,DOMINOS PIZZA,17.47
+20/07/2024,SAINSBURY'S,2.70
+20/07/2024,TFL TRAVEL CHARGE,27.80
+24/07/2024,INTEREST CHARGE,86.58
+24/07/2024,TESCO STORE,32.69
+24/07/2024,TFL TRAVEL CHARGE,2.80
+26/07/2024,WINEDROPS,157.94
+27/07/2024,GLOBALE*/PAIR EYEWEAR,181.00
+27/07/2024,SAINSBURY'S,9.05
+27/07/2024,TFL TRAVEL CHARGE,13.30
+28/07/2024,JUST EAT.CO.UK LTD,14.71
+29/07/2024,M&S WEST HAMPSTEAD,0.50
+29/07/2024,TFL TRAVEL CHARGE,6.80
+30/07/2024,AMAZON.CO.UK,25.98
+30/07/2024,TESCO STORE,3.00
+30/07/2024,TFL TRAVEL CHARGE,6.80
+31/07/2024,TFL TRAVEL CHARGE,6.20
+01/08/2024,7219 - MARLBOROUGH ARMS,14.50
+01/08/2024,GOPUFF,22.34
+01/08/2024,LIME*RIDE XR67,4.77
+01/08/2024,TFL TRAVEL CHARGE,7.10
+01/08/2024,UBER ONE,5.99
+02/08/2024,ALICE HOUSE,93.63
+02/08/2024,BOLT,18.10
+03/08/2024,SAINSBURY'S SUPERMARKET,12.60
+05/08/2024,AMZNMKTPLACE,26.94
+05/08/2024,PAYPAL *DECATHLONUK,38.44
+05/08/2024,TFL TRAVEL CHARGE,6.80
+05/08/2024,UBER EATS,18.74
+06/08/2024,SAINSBURY'S SUPERMARKET,28.79
+06/08/2024,TFL TRAVEL CHARGE,6.80
+07/08/2024,DOMINOS PIZZA,17.47
+07/08/2024,TESCO STORE,6.50
+07/08/2024,TFL TRAVEL CHARGE,1.80
+08/08/2024,TESCO STORE,4.00
+09/08/2024,7162 - ANCHOR - BANKSID,44.60
+09/08/2024,GOPUFF,25.54
+09/08/2024,TFL TRAVEL CHARGE,2.80
+10/08/2024,ROOFOODS LTD,39.78
+10/08/2024,St Christophers 121,13.30
+10/08/2024,TFL TRAVEL CHARGE,5.60
+10/08/2024,The Portman,65.20
+11/08/2024,AMAZON.CO.UK,9.08
+11/08/2024,LIME*RIDE XR67,3.07
+11/08/2024,TESCO STORE,1.70
+11/08/2024,TFL TRAVEL CHARGE,3.60
+11/08/2024,TIKTOK SHOP SELLER,24.62
+12/08/2024,TFL TRAVEL CHARGE,6.80
+13/08/2024,M&S WEST HAMPSTEAD,9.80
+13/08/2024,TFL TRAVEL CHARGE,6.80
+14/08/2024,M&S WEST HAMPSTEAD,10.75
+15/08/2024,MARKET HALL OXFORD STRE,55.25
+15/08/2024,TFL TRAVEL CHARGE,3.40
+16/08/2024,Cahoots,28.50
+16/08/2024,HIPPOP,17.99
+16/08/2024,JUST EAT.CO.UK LTD,11.98
+16/08/2024,PREZOLA.COM,100.00
+16/08/2024,UBER TRIP,22.87
+17/08/2024,4342 - GOLDEN FLEECE,14.20
+17/08/2024,ALL TIME FOOD & WINE,14.45
+17/08/2024,Flightcase Bars,21.00
+17/08/2024,Rusty Bike,16.80
+17/08/2024,TFL TRAVEL CHARGE,2.80
+19/08/2024,TFL TRAVEL CHARGE,6.80
+20/08/2024,7190 - GLOBE MARYLEBONE,58.40
+20/08/2024,LIME*RIDE XR67,2.84
+20/08/2024,TFL TRAVEL CHARGE,6.20
+21/08/2024,LIME*RIDE XR67,3.90
+21/08/2024,M&S WEST HAMPSTEAD,13.45
+22/08/2024,3083 -FINERY LONDON W1,31.30
+22/08/2024,ITX UK LIMITED,32.94
+22/08/2024,Swingers West End,29.04
+22/08/2024,TFL TRAVEL CHARGE,6.20
+22/08/2024,asos.com,164.93
+23/08/2024,KINGS PHARMACY,9.90
+23/08/2024,SAINSBURY'S,4.35
+23/08/2024,TESCO STORE,8.25
+23/08/2024,TFL TRAVEL CHARGE,4.60
+23/08/2024,THE ATLAS,26.40
+24/08/2024,INTEREST CHARGE,71.77
+24/08/2024,TESCO STORE,32.69
+24/08/2024,TFL TRAVEL CHARGE,2.80
+25/08/2024,The Jack Russell,37.75
+27/08/2024,TFL TRAVEL CHARGE,6.80
+27/08/2024,UBER EATS,16.27
+27/08/2024,asos.com,595.20
+28/08/2024,LIME*RIDE XR67,3.30
+28/08/2024,M&S WEST HAMPSTEAD,6.75
+28/08/2024,OMNES,145.19
+28/08/2024,SAINSBURY'S,8.19
+29/08/2024,TFL TRAVEL CHARGE,6.80
+30/08/2024,AMAZON.CO.UK,27.98
+30/08/2024,LIME*PASS XR67,3.99
+30/08/2024,LIME*RIDE XR67,2.03
+30/08/2024,Pig and Butcher,167.50
+30/08/2024,TESCO STORE,14.60
+30/08/2024,TFL TRAVEL CHARGE,1.90
+30/08/2024,THE ALBION,13.80
+31/08/2024,AMZNMKTPLACE,19.99
+31/08/2024,MYVITAMINS.COM,7.78
+31/08/2024,SAINSBURY'S,10.40
+31/08/2024,TIKTOK SHOP SELLER,13.47
+01/09/2024,M&S WEST HAMPSTEAD,11.70
+01/09/2024,UBER EATS,18.14
+01/09/2024,UBER ONE,5.99
+02/09/2024,TFL TRAVEL CHARGE,6.80
+03/09/2024,3CPAYMENT*SOHOHOUSE,39.16
+03/09/2024,TFL TRAVEL CHARGE,6.20
+04/09/2024,DCC payment,15.20
+04/09/2024,JUST EAT.CO.UK LTD,13.44
+04/09/2024,UBER TRIP,18.72
+05/09/2024,7219 - MARLBOROUGH ARMS,22.00
+05/09/2024,TFL TRAVEL CHARGE,6.20
+06/09/2024,AMZNMKTPLACE,26.99
+06/09/2024,ROOFOODS LTD,33.19
+06/09/2024,TESCO STORE,23.52
+07/09/2024,CO-OP PARSONS GREEN,9.20
+07/09/2024,Cross Keys,15.70
+07/09/2024,HOLLYWOOD ARMS,38.40
+07/09/2024,LIME*RIDE XR67,3.32
+07/09/2024,TFL TRAVEL CHARGE,5.60
+07/09/2024,The Surprise,30.50
+07/09/2024,White Horse,14.80
+09/09/2024,LIME*RIDE XR67,2.84
+09/09/2024,M&S WEST HAMPSTEAD,1.70
+10/09/2024,MCDONALDS,5.67
+10/09/2024,TFL TRAVEL CHARGE,6.20
+11/09/2024,LIME*RIDE XR67,3.53
+11/09/2024,M&S WEST HAMPSTEAD,5.05
+12/09/2024,DCC9F8AE,33.15
+12/09/2024,TFL TRAVEL CHARGE,5.60
+12/09/2024,THE GRAFTON ARMS,7.30
+13/09/2024,Cahoots,21.50
+13/09/2024,Clachan,15.60
+13/09/2024,KILN 58 BREWER,126.28
+13/09/2024,TFL TRAVEL CHARGE,2.80
+13/09/2024,WAITROSE,16.16
+14/09/2024,CKO*COGGLES,241.00
+14/09/2024,GROSVENOR CASINO LTD,28.36
+14/09/2024,LIME*RIDE XR67,4.45
+14/09/2024,TESCO STORE,8.25
+14/09/2024,TFL TRAVEL CHARGE,2.80
+14/09/2024,THE HERO OF MAIDA,45.40
+14/09/2024,UBER TRIP,12.00
+15/09/2024,HILTON LONDON METROPOLE,14.63
+15/09/2024,ROOFOODS LTD,14.39
+15/09/2024,UBER TRIP,22.29
+16/09/2024,M&S WEST HAMPSTEAD,2.50
+16/09/2024,TESCO STORE,3.60
+16/09/2024,TFL TRAVEL CHARGE,6.80
+17/09/2024,TESCO STORE,8.25
+17/09/2024,TFL TRAVEL CHARGE,5.20
+18/09/2024,JUST EAT.CO.UK LTD,13.14
+18/09/2024,LIME*RIDE XR67,3.30
+18/09/2024,M&S WEST HAMPSTEAD,7.40
+18/09/2024,TESCO STORE,2.80
+18/09/2024,WWW.THETIMES.CO.UK,1.00
+19/09/2024,TESCO STORE,3.60
+19/09/2024,TFL TRAVEL CHARGE,2.80
+19/09/2024,WAXY O CONNORS LONDON,48.88
+19/09/2024,WAXYS LITTLE SISTER,14.98
+20/09/2024,JG *GREENER AND CLEANER,20.00
+20/09/2024,O'Neill's Wardour Stree,46.55
+20/09/2024,UBER TRIP,24.17
+21/09/2024,CLIPSTONE,68.95
+21/09/2024,DOMINOS PIZZA,31.97
+21/09/2024,LIME*PASS XR67,3.99
+21/09/2024,SAINSBURY'S,11.75
+21/09/2024,TFL TRAVEL CHARGE,2.80
+21/09/2024,THE GRAFTON ARMS,85.60
+21/09/2024,UBER EATS,26.50
+22/09/2024,WORLDOFBOOKS.COM,15.10
+23/09/2024,CHIPOTLE,9.25
+23/09/2024,PAYPAL *EBAY UK,27.48
+23/09/2024,TFL TRAVEL CHARGE,6.80
+24/09/2024,INTEREST CHARGE,93.70
+24/09/2024,MCDONALDS,5.67
+24/09/2024,TFL TRAVEL CHARGE,6.20
+25/09/2024,JD Wetherspoons,25.61
+25/09/2024,TFL TRAVEL CHARGE,5.60
+26/09/2024,Alberts Schloss London,154.32
+26/09/2024,TFL TRAVEL CHARGE,6.20
+27/09/2024,GDK ISLINGTON,10.98
+27/09/2024,LIME*PASS XR67,3.99
+27/09/2024,OLD TOWN 97,18.50
+27/09/2024,SAINSBURY'S,5.00
+27/09/2024,The Black Lion,45.50
+28/09/2024,SAINSBURY'S,12.90
+28/09/2024,SP WORLDOFBOOKS.COM,12.60
+29/09/2024,UBER EATS,49.14
+30/09/2024,TESCO STORE,5.00
+30/09/2024,TFL TRAVEL CHARGE,6.20
+30/09/2024,TRAINLINE trainline,89.29
+01/10/2024,MCDONALDS WARREN STREET,5.67
+01/10/2024,TFL TRAVEL CHARGE,6.20
+01/10/2024,THE GRAFTON ARMS,19.71
+01/10/2024,UBER ONE,5.99
+02/10/2024,TFL TRAVEL CHARGE,6.80
+03/10/2024,PRESTO CAFE,6.00
+03/10/2024,TFL TRAVEL CHARGE,2.80
+03/10/2024,VOI TECHNOLOGY AB,2.87
+04/10/2024,BALANS,27.23
+04/10/2024,LIME*RIDE XR67,7.67
+05/10/2024,B BAGEL,7.55
+05/10/2024,BOOTS THE CHEMIST,3.10
+05/10/2024,Banker - EC4,31.00
+05/10/2024,LIME*PASS XR67,3.99
+05/10/2024,LIME*RIDE XR67,1.45
+05/10/2024,TESCO STORE,6.00
+05/10/2024,TFL TRAVEL CHARGE,8.30
+05/10/2024,UBER TRIP,17.54
+05/10/2024,WOOLPACK,22.80
+05/10/2024,YOUNGS.CO.UK,23.50
+06/10/2024,DOMINOS PIZZA,35.45
+06/10/2024,TFL TRAVEL CHARGE,2.80
+07/10/2024,TESCO STORE,4.15
+07/10/2024,TFL TRAVEL CHARGE,8.50
+07/10/2024,WAITROSE JOHN BARNES,3.50
+08/10/2024,7219 - MARLBOROUGH ARMS,10.57
+08/10/2024,TFL TRAVEL CHARGE,6.20
+09/10/2024,SAINSBURY'S,11.40
+10/10/2024,7243 - ROUND TABLE,52.85
+10/10/2024,TFL TRAVEL CHARGE,8.50
+11/10/2024,DELIVEROO,19.71
+11/10/2024,M&S WEST HAMPSTEAD,14.65
+12/10/2024,FENTIMAN ARMS,58.46
+12/10/2024,TFL TRAVEL CHARGE,4.60
+12/10/2024,UBER TRIP,19.10
+13/10/2024,DELIVEROO,19.98
+13/10/2024,JUST EAT.CO.UK LTD,13.20
+13/10/2024,LIME*RIDE XR67,8.54
+13/10/2024,MCDONALD'S,6.76
+13/10/2024,TFL TRAVEL CHARGE,2.80
+13/10/2024,THE SWAN,41.00
+14/10/2024,TESCO STORE,5.00
+14/10/2024,TFL TRAVEL CHARGE,6.80
+15/10/2024,GASTRONOME LTD,55.50
+15/10/2024,LIME*RIDE XR67,2.61
+15/10/2024,TESCO STORE,5.00
+15/10/2024,TFL TRAVEL CHARGE,6.20
+16/10/2024,KINGS PHARMACY,9.90
+16/10/2024,M&S WEST HAMPSTEAD,8.00
+16/10/2024,TESCO STORE,2.85
+17/10/2024,BOLT,7.90
+17/10/2024,GREEN DRAGON HOTEL,9.50
+17/10/2024,MARKS AND SPENCER PADDI,9.35
+21/10/2024,TESCO STORE,5.25
+21/10/2024,TFL TRAVEL CHARGE,3.40
+22/10/2024,M&S WEST HAMPSTEAD,6.00
+22/10/2024,TFL TRAVEL CHARGE,6.80
+23/10/2024,M&S WEST HAMPSTEAD,17.96
+24/10/2024,INTEREST CHARGE,94.03
+24/10/2024,MEATLIQUOR W1,26.25
+24/10/2024,TFL TRAVEL CHARGE,6.20
+25/10/2024,DELIVEROO,37.08
+26/10/2024,JUST EAT.CO.UK LTD,12.44
+26/10/2024,LIME*RIDE XR67,4.63
+26/10/2024,MARKS & SPENCER,6.05
+26/10/2024,TFL TRAVEL CHARGE,7.40
+26/10/2024,TRAINLINE trainline,38.35
+26/10/2024,The North Star,19.20
+27/10/2024,SP RAFATRAD,16.95
+27/10/2024,TFL TRAVEL CHARGE,5.60
+27/10/2024,The Three Colts Tavern,65.65
+28/10/2024,TFL TRAVEL CHARGE,6.80
+29/10/2024,7233 - PRINCE OF WALES,15.30
+29/10/2024,Gillian Lynne,22.00
+29/10/2024,KOLKATI,11.50
+29/10/2024,MCDONALDS HOLBORN,4.77
+29/10/2024,TFL TRAVEL CHARGE,7.95
+30/10/2024,SP OPCAO FOR MEN,22.98
+30/10/2024,TESCO STORE,7.70
+30/10/2024,TRAINLINE trainline,12.59
+31/10/2024,TFL TRAVEL CHARGE,8.50
+01/11/2024,SAINSBURY'S,13.45
+01/11/2024,The Black Lion,26.00
+01/11/2024,UBER ONE,4.99
+02/11/2024,1556-CRICKETERS,33.70
+02/11/2024,KING'S ARMS WANDSWORTH,7.30
+02/11/2024,LIME*RIDE XR67,3.03
+02/11/2024,Nemo Cafe,9.90
+02/11/2024,SAINSBURY'S SUPERMARKET,6.83
+02/11/2024,TFL TRAVEL CHARGE,7.60
+02/11/2024,TWICKENHAM EXPERIENCE L,48.10
+02/11/2024,Turks Head,16.00
+03/11/2024,CABVISION NETWORK,14.80
+03/11/2024,ENTHUSE - DONATION,15.00
+03/11/2024,MCDONALD'S,6.16
+04/11/2024,CHIPOTLE,9.45
+04/11/2024,TFL TRAVEL CHARGE,8.50
+05/11/2024,TESCO STORE,8.55
+05/11/2024,TFL TRAVEL CHARGE,6.20
+06/11/2024,MOVEMBERUK,30.00
+06/11/2024,TESCO STORE,7.80
+06/11/2024,TFL TRAVEL CHARGE,6.80
+07/11/2024,TFL TRAVEL CHARGE,6.20
+08/11/2024,NORTH LONDON TAVERN,34.60
+09/11/2024,7223 - OLD SWAN,15.10
+09/11/2024,LIME*PASS XR67,3.99
+09/11/2024,MCDONALDS,15.66
+09/11/2024,Sun In Splendour,15.90
+09/11/2024,TESCO STORE,26.57
+09/11/2024,TFL TRAVEL CHARGE,1.75
+09/11/2024,TRAINLINE trainline,30.49
+09/11/2024,Windsor Castle,118.91
+10/11/2024,DELIVEROO,21.12
+10/11/2024,TESCO STORE,15.30
+11/11/2024,SAINSBURY'S SUPERMARKET,8.00
+11/11/2024,TFL TRAVEL CHARGE,6.20
+11/11/2024,WINEDROPS,26.00
+12/11/2024,TFL TRAVEL CHARGE,6.80
+13/11/2024,LIME*RIDE XR67,3.76
+13/11/2024,Lock Tavern,7.00
+13/11/2024,MCMULLEN AND SONS LTD,51.30
+13/11/2024,TFL TRAVEL CHARGE,4.60
+13/11/2024,UBER EATS,21.16
+14/11/2024,FALLOW RESTAURANT,46.66
+14/11/2024,LIME*RIDE XR67,3.32
+14/11/2024,TFL TRAVEL CHARGE,6.20
+14/11/2024,THE CHEQUERS,8.35
+14/11/2024,WAXYS LITTLE SISTER,15.18
+15/11/2024,3CPAYMENT*PRET A MANGER,8.59
+16/11/2024,COAT AND BADGE,35.55
+16/11/2024,DOMINOS PIZZA,35.47
+16/11/2024,TFL TRAVEL CHARGE,2.80
+16/11/2024,YOUNGS.CO.UK,41.00
+17/11/2024,DELIVEROO,16.36
+17/11/2024,MARKET HALLS VICTORIA,19.60
+17/11/2024,TESCO STORE,3.05
+17/11/2024,TFL TRAVEL CHARGE,5.60
+17/11/2024,UBER TRIP,10.94
+17/11/2024,UNIQLO EUROPE LTD,15.10
+17/11/2024,ZARA OXFORD STREET,17.99
+18/11/2024,TESCO STORE,1.60
+18/11/2024,TFL TRAVEL CHARGE,8.50
+19/11/2024,Army Navy Club,31.93
+19/11/2024,LIME*RIDE XR67,3.53
+19/11/2024,TFL TRAVEL CHARGE,6.20
+20/11/2024,7219 - MARLBOROUGH ARMS,14.75
+20/11/2024,M&S WEST HAMPSTEAD,3.90
+20/11/2024,TESCO STORE,5.00
+20/11/2024,TFL TRAVEL CHARGE,6.20
+21/11/2024,7219 - MARLBOROUGH ARMS,14.20
+21/11/2024,BOLT,8.20
+21/11/2024,FITZROVIA BELLE LIMITED,43.20
+21/11/2024,TFL TRAVEL CHARGE,6.20
+21/11/2024,WAXY O CONNORS LONDON,51.17
+22/11/2024,DELIVEROO,16.92
+22/11/2024,TESCO STORE,34.45
+23/11/2024,3CPAYMENT*PRET A MANGER,5.50
+23/11/2024,ALDI LONDON,5.29
+23/11/2024,DUKE OF SUSSEX LAMBETH,43.90
+23/11/2024,HM.COM,45.97
+23/11/2024,LIME*RIDE XR67,8.83
+23/11/2024,NEXT ONLINE,28.95
+23/11/2024,SAINSBURY'S SUPERMARKET,4.64
+23/11/2024,SR-THE ORANGE,51.10
+23/11/2024,TFL TRAVEL CHARGE,8.50
+23/11/2024,WAITROSE JOHN BARNES,22.93
+24/11/2024,5757 -DURELL ARMS,13.60
+24/11/2024,INTEREST CHARGE,94.05
+24/11/2024,ROOFOODS LTD,7.99
+25/11/2024,AMZN MKTP UK,31.83
+25/11/2024,TFL TRAVEL CHARGE,6.20
+26/11/2024,MCDONALDS STRAND,5.67
+26/11/2024,TESCO STORE,6.65
+26/11/2024,TFL TRAVEL CHARGE,7.95
+26/11/2024,The Porterhouse,40.95
+27/11/2024,M&S WEST HAMPSTEAD,10.35
+28/11/2024,GASTRONOME LTD,20.00
+28/11/2024,LIME*RIDE XR67,2.84
+28/11/2024,TFL TRAVEL CHARGE,6.20
+29/11/2024,EVERYMAN MEDIA GROUP,45.05
+29/11/2024,TESCO STORE,12.75
+29/11/2024,WINEDROPS,19.98
+30/11/2024,M&S WEST HAMPSTEAD,18.65
+30/11/2024,UBER EATS,23.61
+01/12/2024,ALDI LONDON,3.78
+01/12/2024,SAINSBURY'S SUPERMARKET,11.35
+01/12/2024,TFL TRAVEL CHARGE,3.60
+01/12/2024,TIKTOK SHOP SELLER,14.70
+01/12/2024,UBER ONE,4.99
+01/12/2024,WAITROSE JOHN BARNES,15.63
+02/12/2024,3CPAYMENT*PRET A MANGER,5.50
+02/12/2024,TFL TRAVEL CHARGE,8.50
+03/12/2024,CHIPOTLE,9.45
+03/12/2024,LIME*RIDE XR67,3.30
+03/12/2024,TFL TRAVEL CHARGE,6.20
+03/12/2024,The Duke of Wellington,20.40
+05/12/2024,Queens Head Piccadilly,14.30
+05/12/2024,TFL TRAVEL CHARGE,6.20
+06/12/2024,KING'S ARMS WANDSWORTH,29.10
+06/12/2024,M&S WEST HAMPSTEAD,4.90
+06/12/2024,Prince of Wales,21.03
+06/12/2024,TFL TRAVEL CHARGE,5.15
+07/12/2024,DELIVEROO,67.38
+07/12/2024,UBER TRIP,26.92
+08/12/2024,TFL TRAVEL CHARGE,7.80
+08/12/2024,UBER EATS,31.10
+08/12/2024,WAITROSE JOHN BARNES,21.98
+09/12/2024,TFL TRAVEL CHARGE,6.20
+10/12/2024,SAINSBURY'S SUPERMARKET,17.50
+10/12/2024,TFL TRAVEL CHARGE,6.20
+11/12/2024,LIDL LON-TOTTENHAM,3.58
+11/12/2024,TFL TRAVEL CHARGE,3.40
+12/12/2024,TFL TRAVEL CHARGE,3.40
+12/12/2024,WINEDROPS,19.98
+13/12/2024,DELIVEROO 207008,19.55
+13/12/2024,Hereford - South Kensin,23.10
+13/12/2024,TESCO STORE,15.00
+13/12/2024,TFL TRAVEL CHARGE,2.80
+14/12/2024,LIDL LON-PUTNEY,6.25
+14/12/2024,PRIME VIDEO,3.49
+14/12/2024,TFL TRAVEL CHARGE,5.60
+14/12/2024,UBER EATS,16.22
+15/12/2024,7207 - JUNCTION,60.10
+15/12/2024,DELIVEROO 686564,37.44
+15/12/2024,LIME*RIDE XR67,6.80
+15/12/2024,MCDONALD'S,8.47
+15/12/2024,TFL TRAVEL CHARGE,8.50
+16/12/2024,TFL TRAVEL CHARGE,6.80
+16/12/2024,TRAINLINE trainline,23.84
+17/12/2024,Alberts Schloss London,187.18
+17/12/2024,DINES* SH SKATE LOUNGE,15.00
+17/12/2024,LIME*RIDE XR67,3.32
+17/12/2024,SAINSBURY'S,7.63
+17/12/2024,TFL TRAVEL CHARGE,2.80
+18/12/2024,Alberts Schloss London,28.80
+18/12/2024,BOLT,21.90
+18/12/2024,MCDONALDS,5.67
+18/12/2024,TESCO STORE,1.85
+18/12/2024,TFL TRAVEL CHARGE,7.40
+18/12/2024,WWW.THETIMES.CO.UK,4.99
+19/12/2024,7219 - MARLBOROUGH ARMS,27.60
+19/12/2024,Lock Tavern,21.30
+19/12/2024,TEG MJR,60.30
+19/12/2024,TFL TRAVEL CHARGE,5.15
+20/12/2024,BE AT ONE CAMDEN,48.85
+20/12/2024,BOLT,14.80
+20/12/2024,Court,7.40
+20/12/2024,Green Man,63.95
+20/12/2024,TFL TRAVEL CHARGE,2.80
+21/12/2024,MARKS AND SPENCER PADDI,4.50
+21/12/2024,MOSAIC GROUP,80.00
+21/12/2024,TFL TRAVEL CHARGE,2.80
+21/12/2024,UBER EATS,17.63
+24/12/2024,INTEREST CHARGE,55.08
+24/12/2024,ROOFOODS LTD,7.99
+27/12/2024,AIRBNB * HMJ4JJS2W5,444.39
+27/12/2024,BOOKING.COM B.V.,629.49
+28/12/2024,AIRBNB * HMYNMEFS8J,1334.38
+29/12/2024,WM MORRISONS STORES,65.28
+31/12/2024,HARVEY NICHOLS,55.50
+01/01/2025,TEXACO NEWTOWN CROSS GA,31.70
+01/01/2025,UBER ONE,4.99
+02/01/2025,Windsor Castle,115.75
+02/01/2025,TFL TRAVEL CHARGE,2.90
+02/01/2025,WM MORRISONS STORES,5.10
+03/01/2025,THE GEORGE,68.70
+03/01/2025,TRAINLINE trainline,47.95
+03/01/2025,UBER TRIP,12.99
+04/01/2025,BOLT,12.80
+04/01/2025,TFL TRAVEL CHARGE,4.90
+04/01/2025,WAITROSE PUTNEY,24.84
+05/01/2025,M&S GREEN PARK,1.15
+05/01/2025,TFL TRAVEL CHARGE,5.60
+06/01/2025,AMZNMKTPLACE,24.99
+06/01/2025,TFL TRAVEL CHARGE,8.50
+07/01/2025,TFL TRAVEL CHARGE,6.80
+08/01/2025,ROYAL OPERA HOUSE,459.00
+08/01/2025,SAINSBURY'S,9.69
+08/01/2025,TESCO STORE,8.73
+08/01/2025,TFL TRAVEL CHARGE,3.70
+09/01/2025,Crown and Shuttle,14.30
+09/01/2025,TFL TRAVEL CHARGE,8.50
+09/01/2025,VAGABOND WINES SHOREDIT,19.30
+09/01/2025,XI HOME DUMPLINGS BAY X,36.33
+10/01/2025,The Atlas,29.20
+10/01/2025,TFL TRAVEL CHARGE,1.80
+11/01/2025,5757 -DURELL ARMS,21.00
+11/01/2025,7201 - GREYHOUND KENSIN,26.80
+11/01/2025,TFL TRAVEL CHARGE,7.35
+11/01/2025,White Horse,34.95
+12/01/2025,BOLT,19.00
+12/01/2025,DELIVEROO 207008,26.61
+13/01/2025,Carpenters Arms,15.20
+13/01/2025,SAINSBURY'S,5.00
+13/01/2025,TESCO STORE,14.24
+13/01/2025,TFL TRAVEL CHARGE,6.20
+14/01/2025,BUSH CENTRE FILLING STA,8.20
+14/01/2025,TFL TRAVEL CHARGE,1.90
+15/01/2025,TFL TRAVEL CHARGE,1.90
+16/01/2025,7219 - MARLBOROUGH ARMS,7.60
+16/01/2025,CROWN AND ANCHOR,15.20
+16/01/2025,DELIVEROO 207008,26.96
+16/01/2025,Jack Horner - W1,7.80
+16/01/2025,LUCKYS HOT CHICKEN,16.00
+16/01/2025,MCDONALDS CAMBRIDGE CIR,2.29
+16/01/2025,TFL TRAVEL CHARGE,3.40
+17/01/2025,APOLLO VICTORIA THEATRE,23.00
+17/01/2025,M&S WEST HAMPSTEAD,4.35
+17/01/2025,MARKET HALLS VICTORIA,31.60
+17/01/2025,MCDONALD'S,3.38
+17/01/2025,TFL TRAVEL CHARGE,5.60
+17/01/2025,UBER TRIP,24.74
+18/01/2025,M&S WEST HAMPSTEAD,21.67
+18/01/2025,WWW.THETIMES.CO.UK,4.99
+20/01/2025,GASTRONOME LTD,43.70
+20/01/2025,TESCO STORE,5.00
+20/01/2025,TFL TRAVEL CHARGE,3.40
+20/01/2025,UBER TRIP,9.64
+21/01/2025,Carpenters Arms,52.30
+21/01/2025,MCDONALDS WARREN STREET,4.77
+21/01/2025,TFL TRAVEL CHARGE,6.20
+22/01/2025,M&S WEST HAMPSTEAD,14.10
+22/01/2025,TFL TRAVEL CHARGE,3.70
+23/01/2025,MARKET HALL OXFORD STRE,42.55
+23/01/2025,TFL TRAVEL CHARGE,6.20
+24/01/2025,INTEREST CHARGE,67.19
+24/01/2025,ROOFOODS LTD,7.99
+25/01/2025,M&S WEST HAMPSTEAD,26.77
+25/01/2025,The Lighterman,13.70
+25/01/2025,TFL TRAVEL CHARGE,5.60
+25/01/2025,ZETTLE *BABEL BEERHOUSE,42.45
+27/01/2025,TFL TRAVEL CHARGE,6.20
+27/01/2025,UBER EATS,21.48
+28/01/2025,3CPAYMENT*PRET A MANGER,10.25
+28/01/2025,TFL TRAVEL CHARGE,6.80
+29/01/2025,TFL TRAVEL CHARGE,3.70
+30/01/2025,Carpenters Arms,30.50
+30/01/2025,FRANCO MANCA,13.13
+30/01/2025,TFL TRAVEL CHARGE,6.20
+31/01/2025,NORTH LONDON TAVERN,19.90
+31/01/2025,SAINSBURY'S SUPERMARKET,6.58
+01/02/2025,FENTIMAN ARMS,67.05
+01/02/2025,LIME*PASS XR67,3.99
+01/02/2025,TFL TRAVEL CHARGE,2.80
+01/02/2025,UBER EATS,22.00
+01/02/2025,UBER LIME,4.93
+01/02/2025,UBER ONE,4.99
+01/02/2025,YOUNGS.CO.UK,7.60
+02/02/2025,TFL TRAVEL CHARGE,3.60
+02/02/2025,UBER TRIP,10.94
+03/02/2025,SAINSBURY'S,0.80
+03/02/2025,TESCO STORE,5.80
+03/02/2025,TFL TRAVEL CHARGE,6.80
+03/02/2025,UBER EATS,18.58
+04/02/2025,7219 - MARLBOROUGH ARMS,12.87
+04/02/2025,TFL TRAVEL CHARGE,6.80
+05/02/2025,DOMAINE SKIABLE DE L'AL,1556.18
+05/02/2025,PAYPAL *INTERNATION,686.34
+05/02/2025,TFL TRAVEL CHARGE,5.60
+05/02/2025,THE HURLINGHAM CLUB RAN,65.35
+06/02/2025,TESCO STORE,13.46
+06/02/2025,TFL TRAVEL CHARGE,6.20
+07/02/2025,Electric Shuffle,39.40
+07/02/2025,TFL TRAVEL CHARGE,2.80
+07/02/2025,UBER EATS,14.54
+07/02/2025,Vinegar Yard,26.70
+08/02/2025,Prince Albert,14.80
+08/02/2025,St Christophers 121,60.60
+08/02/2025,TFL TRAVEL CHARGE,12.45
+09/02/2025,BOLT,16.60
+09/02/2025,UBER EATS,15.81
+10/02/2025,M&S WEST HAMPSTEAD,3.25
+10/02/2025,TFL TRAVEL CHARGE,8.50
+10/02/2025,UBER EATS,20.98
+10/02/2025,WAITROSE JOHN BARNES,21.36
+11/02/2025,PRET A MANGER,9.60
+11/02/2025,TFL TRAVEL CHARGE,6.20
+13/02/2025,ASCOT ROYAL ENCLOSURE P,250.00
+14/02/2025,AIRBNB * HMYNMEFS8J,1204.07
+14/02/2025,M&S WEST HAMPSTEAD,31.85
+15/02/2025,CASK LONDON LTD,26.80
+15/02/2025,Cabbage Patch,23.00
+15/02/2025,TFL TRAVEL CHARGE,12.90
+15/02/2025,WHITE CROSS,83.20
+16/02/2025,WETHERSPOONS CLAPHAM JU,11.01
+17/02/2025,TFL TRAVEL CHARGE,6.20
+17/02/2025,UBER EATS,16.89
+18/02/2025,SAINSBURY'S,13.15
+18/02/2025,TFL TRAVEL CHARGE,6.20
+18/02/2025,WWW.THETIMES.CO.UK,4.99
+19/02/2025,TESCO STORE,5.80
+19/02/2025,UBER EATS,13.26
+20/02/2025,7219 - MARLBOROUGH ARMS,21.70
+20/02/2025,KOKO,20.00
+20/02/2025,Lock Tavern,29.55
+20/02/2025,Lyttelton Arms,18.30
+20/02/2025,TFL TRAVEL CHARGE,6.80
+21/02/2025,DOMINOS PIZZA,18.47
+21/02/2025,SAINSBURY'S,13.90
+21/02/2025,UBER TRIP,12.43
+22/02/2025,Hope,30.50
+22/02/2025,LIME*RIDE XR67,5.93
+22/02/2025,TFL TRAVEL CHARGE,5.50
+22/02/2025,THE LIGHTHOUSE,22.55
+22/02/2025,YOUNGS.CO.UK,22.50
+23/02/2025,UBER TRIP,31.42
+24/02/2025,ROOFOODS LTD,7.99
+24/02/2025,TFL TRAVEL CHARGE,6.20
+25/02/2025,PRET A MANGER,10.25
+25/02/2025,TESCO STORE,5.10
+25/02/2025,TFL TRAVEL CHARGE,6.20
+27/02/2025,Jack Horner - W1,15.40
+27/02/2025,TFL TRAVEL CHARGE,6.20
+28/02/2025,SAINSBURY'S SUPERMARKET,20.60
+28/02/2025,WINEDROPS,1.20
+01/03/2025,EASYJET,11.60
+01/03/2025,ITSU,8.49
+01/03/2025,JD Wetherspoons,28.20
+01/03/2025,TRAINLINE trainline,9.65
+01/03/2025,UBER ONE,4.99
+05/03/2025,AIRBNB * INC,149.46
+08/03/2025,Golden Lion Fulham,13.90
+08/03/2025,HALF MOON PUTNEY,15.50
+08/03/2025,TFL TRAVEL CHARGE,3.50
+08/03/2025,TRAINLINE trainline,10.15
+08/03/2025,The Fox and Hounds,45.00
+08/03/2025,UBER TRIP,371.58
+08/03/2025,WAITROSE PARSONS GREEN,5.00
+08/03/2025,White Horse,15.20
+09/03/2025,BELLE VUE,32.90
+09/03/2025,BOLT,10.10
+09/03/2025,Edinboro Castle,32.20
+09/03/2025,LIME*RIDE XR67,3.90
+09/03/2025,MCDONALD'S,17.66
+09/03/2025,TFL TRAVEL CHARGE,8.15
+09/03/2025,THE GRAZING GOAT,61.97
+09/03/2025,UBER TRIP,14.61
+09/03/2025,ZETTLE *STAVE WHISKY LT,18.80
+10/03/2025,TESCO STORE,6.30
+10/03/2025,TFL TRAVEL CHARGE,7.00
+11/03/2025,PRET A MANGER,7.50
+11/03/2025,TESCO STORE,5.00
+11/03/2025,TFL TRAVEL CHARGE,7.00
+12/03/2025,GDK KILBURN,11.48
+12/03/2025,PARCEL MONKEY,116.98
+12/03/2025,The Black Lion,20.10
+13/03/2025,Carpenters Arms,7.80
+13/03/2025,GASTRONOME LTD,40.60
+13/03/2025,LIME*RIDE XR67,2.74
+13/03/2025,TFL TRAVEL CHARGE,6.40
+13/03/2025,7190 - GLOBE MARYLEBONE,23.40
+14/03/2025,Aladin House,54.45
+14/03/2025,PAYPAL *TERRYJUNIORCLAR,60.00
+14/03/2025,SAINSBURY'S SUPERMARKET,8.53
+14/03/2025,TFL TRAVEL CHARGE,5.80
+14/03/2025,UBER EATS,16.11
+15/03/2025,SAINSBURY'S SUPERMARKET,1.10
+15/03/2025,TFL TRAVEL CHARGE,4.90
+15/03/2025,THE FIVE POINTS BREWING,86.40
+15/03/2025,UBER EATS,19.92
+16/03/2025,DELIVEROO 207008,13.74
+16/03/2025,TESCO STORE,3.60
+16/03/2025,TFL TRAVEL CHARGE,7.00
+17/03/2025,PRET A MANGER,10.25
+17/03/2025,TFL TRAVEL CHARGE,6.40
+18/03/2025,7682 -COACH AND HORSES,14.60
+18/03/2025,CHIPOTLE,10.15
+18/03/2025,TFL TRAVEL CHARGE,6.30
+18/03/2025,The Atlas,38.30
+18/03/2025,WWW.THETIMES.CO.UK,4.99
+19/03/2025,BOLT,12.90
+19/03/2025,SAINSBURY'S,10.09
+19/03/2025,TESCO STORE,13.17
+20/03/2025,7189-GLASS BLOWER PICCA,37.40
+20/03/2025,LIME*RIDE XR67,3.97
+20/03/2025,TFL TRAVEL CHARGE,3.50
+20/03/2025,WAXY O CONNORS LONDON,29.17
+21/03/2025,OLD TOWN 97,87.30
+21/03/2025,SAINSBURY'S,12.00
+21/03/2025,SP MEDICHECKS,45.00
+21/03/2025,UBER EATS,15.41
+21/03/2025,UBER TRIP,24.92
+22/03/2025,DUKE OF SUSSEX LAMBETH,22.50
+22/03/2025,Hercules - SE1,15.60
+22/03/2025,Pineapple Pub,14.35
+22/03/2025,TFL TRAVEL CHARGE,2.90
+22/03/2025,TRAINLINE trainline,98.64
+22/03/2025,The Three Stags,21.55
+23/03/2025,ALDI LONDON FINCHLEY RD,6.09
+23/03/2025,DELIVEROO 207008,16.94
+23/03/2025,DMN* SUNTHIRTEENCANTON,80.00
+23/03/2025,SAINSBURY'S,6.45
+23/03/2025,TFL TRAVEL CHARGE,8.10
+23/03/2025,UBER TRIP,25.99
+23/03/2025,WAITROSE JOHN BARNES,21.40
+24/03/2025,ROOFOODS LTD,7.99
+24/03/2025,TESCO STORE,2.30
+24/03/2025,TFL TRAVEL CHARGE,8.90
+25/03/2025,7219 - MARLBOROUGH ARMS,14.90
+25/03/2025,BERENJAK RESTAURANTS LT,47.15
+25/03/2025,Dog & Duck,37.75
+25/03/2025,TFL TRAVEL CHARGE,6.40
+25/03/2025,TREATWELL,60.00
+26/03/2025,TFL TRAVEL CHARGE,5.80
+27/03/2025,TFL TRAVEL CHARGE,6.40
+28/03/2025,SAINSBURY'S SUPERMARKET,6.48
+28/03/2025,WINEDROPS,45.99
+28/03/2025,WWW.BLOOMANDWILD.COM,31.88
+29/03/2025,200215 Greyhound Road,3.30
+29/03/2025,5677 -CRABTREE,44.55
+29/03/2025,BLUE ANCHOR HAMMERSMITH,22.80
+29/03/2025,LA PARRA TAPAS,52.10
+29/03/2025,LS PRINCE ARTHUR BELGR,15.75
+29/03/2025,TFL TRAVEL CHARGE,5.80
+29/03/2025,UBER EATS,12.62
+30/03/2025,5757 -DURELL ARMS,14.00
+30/03/2025,DOMINOS PIZZA,31.47
+30/03/2025,TFL TRAVEL CHARGE,2.00
+30/03/2025,UBER TRIP,22.99
+30/03/2025,WAITROSE 616,2.20
+31/03/2025,M&S WEST HAMPSTEAD,7.05
+31/03/2025,TFL TRAVEL CHARGE,6.40
+01/04/2025,GASTRONOME LTD,50.70
+01/04/2025,TFL TRAVEL CHARGE,3.50
+01/04/2025,UBER ONE,4.99
+02/04/2025,BOLT,14.50
+03/04/2025,CKO*MUSCLE-BOOSTER.IO,66.65
+03/04/2025,Carpenters Arms,62.65
+03/04/2025,MCDONALDS WARREN STREET,9.57
+03/04/2025,TFL TRAVEL CHARGE,6.40
+04/04/2025,OLD BELL,45.25
+04/04/2025,POPEYES LOUISIANA KITCH,12.88
+04/04/2025,SAINSBURY'S,5.00
+04/04/2025,STONEGATE PUB GROUP,6.55
+05/04/2025,Sun & 13 Cantons W1,441.27
+05/04/2025,TFL TRAVEL CHARGE,2.90
+05/04/2025,THE BLUE POSTS,15.60
+05/04/2025,WINDMILL MAYFAIR,23.55
+06/04/2025,3CPAYMENT*209 HIDDEN BA,154.05
+06/04/2025,BOLT,23.00
+06/04/2025,DELIVEROO 207008,28.29
+07/04/2025,DELIVEROO 686564,14.94
+07/04/2025,M&S TOTTENHAM COURT ROA,10.80
+07/04/2025,TFL TRAVEL CHARGE,7.00
+08/04/2025,GASTRONOME LTD,32.95
+08/04/2025,LIME*RIDE XR67,1.87
+08/04/2025,TFL TRAVEL CHARGE,6.40
+09/04/2025,SAINSBURY'S,5.00
+10/04/2025,Jack Horner - W1,15.85
+10/04/2025,MCDONALDS WARREN STREET,8.67
+10/04/2025,TESCO STORE,6.50
+10/04/2025,TFL TRAVEL CHARGE,6.40
+11/04/2025,ABERCROMBIE FITCH,120.00
+11/04/2025,AMZNMKTPLACE,28.30
+11/04/2025,ITX UK LIMITED,75.98
+11/04/2025,TESCO STORE,3.80
+12/04/2025,LIME*RIDE XR67,11.86
+12/04/2025,Lock Tavern,14.00
+12/04/2025,Panzers,35.00
+12/04/2025,Princess of Wales,43.20
+12/04/2025,THE LANSDOWNE 90 GLOUCE,29.74
+12/04/2025,UBER TRIP,9.69
+13/04/2025,7245 - RUTLAND ARMS,74.25
+13/04/2025,TESCO STORE,11.50
+13/04/2025,TFL TRAVEL CHARGE,2.90
+13/04/2025,UBER TRIP,14.59
+14/04/2025,CHIPOTLE,10.15
+14/04/2025,TFL TRAVEL CHARGE,7.00
+14/04/2025,UBER EATS,37.86
+15/04/2025,PRET A MANGER,9.74
+15/04/2025,TFL TRAVEL CHARGE,7.00
+16/04/2025,TFL TRAVEL CHARGE,5.80
+16/04/2025,WAXY O CONNORS LONDON,60.26
+17/04/2025,TFL TRAVEL CHARGE,3.50
+18/04/2025,MARKS AND SPENCER PADDI,11.95
+18/04/2025,UBER TRIP,35.37
+18/04/2025,WWW.THETIMES.CO.UK,4.99
+21/04/2025,SAINSBURY'S,16.30
+21/04/2025,TRENMILE LTD,18.00
+21/04/2025,UBER TRIP,13.52
+21/04/2025,WM MORRISONS STORES,4.00
+22/04/2025,DELIVEROO 686564,7.22
+22/04/2025,SAINSBURY'S,2.75
+22/04/2025,TESCO STORE,4.73
+22/04/2025,TFL TRAVEL CHARGE,6.40
+23/04/2025,TFL TRAVEL CHARGE,3.50
+24/04/2025,ROOFOODS LTD,7.99
+24/04/2025,TFL TRAVEL CHARGE,10.50
+24/04/2025,UBER TRIP,17.54
+25/04/2025,BOOKING.COM B.V.,111.99
+25/04/2025,DELIVEROO 686564,13.37
+25/04/2025,TFL TRAVEL CHARGE,2.10
+25/04/2025,The Atlas,29.10
+25/04/2025,UBER TRIP,18.76
+26/04/2025,Garden Gate,21.60
+26/04/2025,JUST EAT.CO.UK LTD,26.24
+26/04/2025,LIME*RIDE XR67,5.59
+26/04/2025,MITCHELLS & BUTLERS RET,38.00
+26/04/2025,SAINSBURY'S,4.45
+26/04/2025,TFL TRAVEL CHARGE,2.00
+26/04/2025,UBER TRIP,24.21
+27/04/2025,BOYDS GRILL & WINE BAR,22.05
+27/04/2025,GAIL'S WANDSWORTH,8.35
+27/04/2025,TFL TRAVEL CHARGE,8.90
+27/04/2025,UBER TRIP,13.45
+28/04/2025,TESCO STORE,5.00
+28/04/2025,TFL TRAVEL CHARGE,6.40
+29/04/2025,SAINSBURY'S,5.60
+29/04/2025,TFL TRAVEL CHARGE,6.40
+30/04/2025,SAINSBURY'S,7.00
+01/05/2025,Jack Horner - W1,35.25
+01/05/2025,SLUG AND LETTUCE,24.20
+01/05/2025,TFL TRAVEL CHARGE,6.40
+01/05/2025,UBER ONE,4.99
+02/05/2025,SAINSBURY'S,3.50
+02/05/2025,SAINSBURY'S SUPERMARKET,19.78
+03/05/2025,ITX UK LIMITED,-73.03
+03/05/2025,Spaniards,8.40
+03/05/2025,UBER TRIP,27.67
+04/05/2025,DOMINOS PIZZA,49.45
+04/05/2025,SAINSBURY'S,15.10
+05/05/2025,BOLT,30.10
+05/05/2025,SAINSBURY'S,3.20
+05/05/2025,SHELL KILBURN,44.45
+05/05/2025,UBER TRIP,8.78
+05/05/2025,WATERLOO HOTEL OPERATOR,137.70
+05/05/2025,ZIPCAR UK LIMITED,43.75
+06/05/2025,Princess of Wales,65.81
+06/05/2025,TFL TRAVEL CHARGE,5.80
+06/05/2025,THE LANSDOWNE 90 GLOUCE,18.51
+07/05/2025,7161-ALBERT VICTORIA,37.85
+07/05/2025,AMAZON.CO.UK,28.00
+07/05/2025,LIME*RIDE XR67,10.70
+07/05/2025,TFL TRAVEL CHARGE,6.40
+08/05/2025,BOOKING.COM B.V.,148.99
+08/05/2025,TFL TRAVEL CHARGE,5.70
+09/05/2025,AMZNMKTPLACE,9.99
+09/05/2025,FENTIMAN ARMS,56.50
+09/05/2025,TFL TRAVEL CHARGE,3.50
+09/05/2025,WINEDROPS,30.00
+10/05/2025,FENTIMAN ARMS,46.00
+10/05/2025,SAINSBURY'S,14.00
+10/05/2025,UBER EATS,30.73
+10/05/2025,ZIPCAR UK LIMITED,25.00
+11/05/2025,ARGOS,107.25
+11/05/2025,SAINSBURY'S,42.49
+11/05/2025,TESCO STORE,4.25
+11/05/2025,UBER TRIP,7.99
+12/05/2025,LIME*RIDE XR67,2.45
+12/05/2025,SAINSBURY'S,14.78
+12/05/2025,TFL TRAVEL CHARGE,6.40
+13/05/2025,FENTIMAN ARMS,22.20
+13/05/2025,TFL TRAVEL CHARGE,7.00
+13/05/2025,WF* UK4322086214,73.97
+14/05/2025,FENTIMAN ARMS,30.40
+14/05/2025,PAYPAL *AUBREIGH111,64.94
+15/05/2025,LIME*RIDE XR67,3.61
+15/05/2025,OLD TOWN 97,24.60
+15/05/2025,TFL TRAVEL CHARGE,5.70
+16/05/2025,AMAZON.CO.UK,41.88
+17/05/2025,DELIVEROO 207008,32.60
+17/05/2025,Lola Tapas Bar and Wine,65.47
+18/05/2025,UBER EATS,17.78
+18/05/2025,WWW.THETIMES.CO.UK,4.99
+19/05/2025,FENTIMAN ARMS,29.70
+19/05/2025,TFL TRAVEL CHARGE,5.80
+20/05/2025,MARKS & SPENCER Waterlo,9.40
+20/05/2025,TFL TRAVEL CHARGE,5.80
+20/05/2025,TRAINLINE Trainline,23.30
+23/05/2025,AMZNMKTPLACE,17.01
+23/05/2025,TFL TRAVEL CHARGE,2.90
+23/05/2025,TRAINLINE Trainline,17.75
+24/05/2025,FENTIMAN ARMS,38.00
+24/05/2025,INTEREST CHARGE,114.41
+24/05/2025,MEMBERSHIP FEE,650.00
+24/05/2025,ROOFOODS LTD,7.99
+24/05/2025,TESCO STORE,13.00
+25/05/2025,AMZNMKTPLACE,32.18
+25/05/2025,FRESHA,38.00
+25/05/2025,LIME*PASS XR67,3.99
+25/05/2025,SAINSBURY'S,11.50
+25/05/2025,The Sporting Page,78.10
+26/05/2025,JUST EAT.CO.UK LTD,28.57
+26/05/2025,LIME*RIDE XR67,2.90
+26/05/2025,YOURSELFIRST.COM,1.99
+27/05/2025,Carpenters Arms,61.50
+27/05/2025,GOFUNDME,49.53
+27/05/2025,TFL TRAVEL CHARGE,5.80
+28/05/2025,3CPAYMENT*18412391 UK L,17.40
+28/05/2025,3CPAYMENT*LONDON CITY A,28.01
+28/05/2025,TFL TRAVEL CHARGE,3.80
+28/05/2025,UBER EATS,17.31
+29/05/2025,KA PAO GLASGOW,104.30
+29/05/2025,TESCO STORE,6.20
+30/05/2025,TRAINLINE Trainline,20.75
+31/05/2025,WAITROSE MILNGAVIE,48.79
+01/06/2025,TFL TRAVEL CHARGE,13.50
+01/06/2025,UBER ONE,4.99
+02/06/2025,FENTIMAN ARMS,15.20
+02/06/2025,TESCO STORE,11.68
+02/06/2025,TFL TRAVEL CHARGE,6.40
+02/06/2025,WINEDROPS,5.99
+03/06/2025,LIME*RIDE XR67,1.87
+03/06/2025,TFL TRAVEL CHARGE,6.40
+05/06/2025,7219 - MARLBOROUGH ARMS,15.15
+05/06/2025,DELIVEROO 207008,17.91
+05/06/2025,FENTIMAN ARMS,50.05
+05/06/2025,TFL TRAVEL CHARGE,6.40
+06/06/2025,AMZNMKTPLACE,177.89
+06/06/2025,ARGOS PP COLLECTION,189.00
+06/06/2025,JUST EAT.CO.UK LTD,27.04
+06/06/2025,LIME*PASS XR67,3.99
+06/06/2025,SAINSBURY'S,29.79
+07/06/2025,COAT AND BADGE,113.65
+07/06/2025,LIME*RIDE XR67,2.03
+07/06/2025,LS TEQUILA MOCKINGBIRD,34.10
+07/06/2025,PURE INDIAN COOKING,44.00
+07/06/2025,TFL TRAVEL CHARGE,2.70
+07/06/2025,THE HURLINGHAM CLUB RAN,5.95
+07/06/2025,UBER TRIP,13.61
+07/06/2025,YOUNGS.CO.UK,19.50
+08/06/2025,LIME*RIDE XR67,1.87
+09/06/2025,CURRYS,17.99
+09/06/2025,PAYPAL *TICKETMASTE TIC,125.45
+09/06/2025,TFL TRAVEL CHARGE,5.80
+10/06/2025,MCDONALDS SHAFTESBURY A,3.38
+10/06/2025,PRET A MANGER,9.74
+10/06/2025,TFL TRAVEL CHARGE,4.65
+10/06/2025,TRAINLINE Trainline,45.54
+10/06/2025,The Starman,62.85
+11/06/2025,PRIME VIDEO RENT,4.99
+11/06/2025,TESCO STORE,3.60
+11/06/2025,TWEEDMANS,35.94
+12/06/2025,DELIVEROO 207008,27.78
+12/06/2025,TFL TRAVEL CHARGE,5.80
+13/06/2025,ESTRELA BAR,86.80
+13/06/2025,LIME*PASS XR67,3.99
+13/06/2025,PRIME VIDEO RENT,4.99
+15/06/2025,3CPAYMENT*SSPUKPADDINGT,10.78
+15/06/2025,MARKS AND SPENCER PADDI,5.10
+15/06/2025,TFL TRAVEL CHARGE,2.90
+15/06/2025,UBER EATS,30.90
+17/06/2025,TRAINLINE Trainline,57.59
+19/06/2025,DELIVEROO 207008,15.19
+19/06/2025,Duke of Wellington,34.10
+19/06/2025,LIME*PASS XR67,3.99
+19/06/2025,SABOR,95.80
+19/06/2025,TFL TRAVEL CHARGE,2.90
+19/06/2025,The Starman,13.80
+19/06/2025,UBER TRIP,15.44
+21/06/2025,1711 by Ascot,46.80
+21/06/2025,DELIVEROO 207008,27.35
+21/06/2025,SODEXO ASCOT,15.60
+21/06/2025,TRAINLINE Trainline,14.55
+21/06/2025,ZETTLE *BEDALES,15.60
+22/06/2025,DELIVEROO 207008,28.27
+23/06/2025,DELIVEROO 207008,20.94
+23/06/2025,TESCO STORE,6.27
+23/06/2025,TFL TRAVEL CHARGE,6.40
+24/06/2025,INTEREST CHARGE,132.44
+24/06/2025,ROOFOODS LTD,7.99
+24/06/2025,SAINSBURY'S,24.18
+24/06/2025,TFL TRAVEL CHARGE,5.80
+25/06/2025,AMZNMKTPLACE,15.81
+25/06/2025,MOLLIE=SOAK SLEEP LIMI,325.00
+26/06/2025,TFL TRAVEL CHARGE,5.80
+27/06/2025,Clarence,7.75
+27/06/2025,LIME*RIDE XR67,2.36
+27/06/2025,OLD TOWN 97,32.20
+27/06/2025,TFL TRAVEL CHARGE,2.90
+27/06/2025,THE LANSDOWNE CLUB,52.33
+28/06/2025,BOLT,14.00
+28/06/2025,DELIVEROO 207008,22.99
+28/06/2025,JUST EAT.CO.UK LTD,16.05
+28/06/2025,SCOTCH,61.00
+29/06/2025,DELIVEROO 207008,23.43
+30/06/2025,INDIGO GREEN,298.41
+30/06/2025,M&S TOTTENHAM COURT ROA,6.60
+30/06/2025,TFL TRAVEL CHARGE,6.40
+01/07/2025,HARVEY NICHOLS,59.40
+01/07/2025,RIVERSIDE,32.75
+01/07/2025,TFL TRAVEL CHARGE,5.80
+01/07/2025,UBER ONE,4.99
+02/07/2025,CHEMIST4U,15.44
+02/07/2025,SP VORTEX AIR,164.99
+03/07/2025,TFL TRAVEL CHARGE,6.40
+04/07/2025,AMZNMKTPLACE,45.47
+04/07/2025,TESCO STORE,8.40
+05/07/2025,LIME*PASS XR67,3.99
+05/07/2025,PRIME VIDEO RENT,4.99
+05/07/2025,Queens Head Brook Green,15.45
+05/07/2025,TFL TRAVEL CHARGE,2.90
+05/07/2025,THE HURLINGHAM CLUB RAN,24.30
+05/07/2025,UBER EATS,21.78
+06/07/2025,DELIVEROO 207008,49.58
+07/07/2025,FENTIMAN ARMS,30.10
+07/07/2025,TFL TRAVEL CHARGE,6.40
+08/07/2025,FENTIMAN ARMS,44.70
+08/07/2025,TFL TRAVEL CHARGE,8.15
+09/07/2025,FENTIMAN ARMS,14.90
+09/07/2025,SEATFROG OPS LIMITED,20.00
+09/07/2025,TESCO STORE,2.75
+10/07/2025,TFL TRAVEL CHARGE,5.70
+10/07/2025,VOI TECHNOLOGY AB,1.93
+11/07/2025,ESTRELA BAR,10.50
+11/07/2025,SAINSBURY'S,32.10
+12/07/2025,DELIVEROO 207008,6.41
+12/07/2025,ESTRELA BAR,88.00
+12/07/2025,FENTIMAN ARMS,14.95
+12/07/2025,LIME*PASS XR67,3.99
+14/07/2025,DELIVEROO 207008,17.46
+14/07/2025,TFL TRAVEL CHARGE,6.40
+15/07/2025,LIME*RIDE XR67,3.70
+15/07/2025,TFL TRAVEL CHARGE,2.90
+15/07/2025,UBER TRIP,17.39
+16/07/2025,SAINSBURY'S,36.28
+17/07/2025,TESCO STORE,5.00
+17/07/2025,TFL TRAVEL CHARGE,5.80
+17/07/2025,WF* UK4336661624,464.98
+18/07/2025,Four Quarters,38.00
+18/07/2025,LIME*PASS XR67,3.99
+18/07/2025,STOREKITCOM*FRANKS CAFE,38.37
+18/07/2025,WWW.THETIMES.CO.UK,4.99
+19/07/2025,UBER TRIP,15.61
+20/07/2025,ARGOS,128.00
+20/07/2025,SAINSBURY'S,46.86
+20/07/2025,UBER TRIP,6.70
+21/07/2025,TFL TRAVEL CHARGE,6.40
+22/07/2025,FENTIMAN ARMS,44.70
+22/07/2025,TFL TRAVEL CHARGE,6.40
+23/07/2025,TESCO STORE,4.42
+23/07/2025,ZIPCAR UK LIMITED,10.44
+24/07/2025,DOMINOS PIZZA,22.77
+24/07/2025,INTEREST CHARGE,116.78
+24/07/2025,ROOFOODS LTD,7.99
+24/07/2025,TFL TRAVEL CHARGE,5.80
+26/07/2025,LIME*RIDE XR67,1.87
+26/07/2025,MORPETH ARMS,22.80
+26/07/2025,The Surprise,22.50
+27/07/2025,DELIVEROO 686564,18.11
+27/07/2025,WINEDROPS,17.30
+28/07/2025,FENTIMAN ARMS,44.70
+28/07/2025,TFL TRAVEL CHARGE,6.40
+28/07/2025,TRAINLINE Trainline,73.69
+29/07/2025,LIME*RIDE XR67,2.74
+29/07/2025,TFL TRAVEL CHARGE,5.70
+30/07/2025,APPLE.COM/BILL,3.00
+30/07/2025,LIME*RIDE XR67,1.51
+31/07/2025,MARKS AND SPENCER PADDI,10.00
+31/07/2025,TFL TRAVEL CHARGE,5.80
+01/08/2025,UBER ONE,4.99
+01/08/2025,WINEDROPS,27.99
+02/08/2025,MORRISONS ABERGAVENNY,15.55
+03/08/2025,NTS CITY SERVICE STATIO,21.35
+03/08/2025,SEATFROG OPS LIMITED,25.00
+03/08/2025,UBER TRIP,14.20
+04/08/2025,DELIVEROO 207008,17.19
+04/08/2025,TFL TRAVEL CHARGE,6.40
+05/08/2025,Queens Head Brook Green,48.91
+05/08/2025,TFL TRAVEL CHARGE,6.40
+05/08/2025,UBER TRIP,17.16
+06/08/2025,LIME*RIDE XR67,2.16
+06/08/2025,SAINSBURY'S,35.52
+08/08/2025,DOMINOS PIZZA,24.17
+08/08/2025,FENTIMAN ARMS,45.60
+09/08/2025,SAINSBURY'S SUPERMARKET,2.10
+09/08/2025,TFL TRAVEL CHARGE,2.70
+09/08/2025,WAITROSE PUTNEY,21.90
+10/08/2025,FOREST,1.90
+10/08/2025,SAINSBURY'S,2.00
+10/08/2025,TFL TRAVEL CHARGE,2.70
+11/08/2025,SAINSBURY'S,3.18
+11/08/2025,TFL TRAVEL CHARGE,6.40
+11/08/2025,UBER EATS,13.66
+12/08/2025,FENTIMAN ARMS,30.40
+12/08/2025,FOREST,1.90
+12/08/2025,TFL TRAVEL CHARGE,6.40
+14/08/2025,7219 - MARLBOROUGH ARMS,15.15
+14/08/2025,Freemasons Arms,41.30
+14/08/2025,LIME*RIDE XR67,2.08
+14/08/2025,MITCHELLS & BUTLERS RET,33.10
+14/08/2025,TFL TRAVEL CHARGE,8.90
+15/08/2025,LIME*PASS XR67,3.99
+15/08/2025,MOLLIE=BROOK WILDE SLE,537.00
+15/08/2025,SAINSBURY'S,14.62
+15/08/2025,UBER EATS,17.63
+15/08/2025,WINEDROPS,118.29
+16/08/2025,SAINSBURY'S,3.95
+16/08/2025,SPAR - ELSTEAD,11.50
+16/08/2025,TRAINLINE Trainline,26.65
+17/08/2025,TRAINLINE Trainline,13.00
+17/08/2025,UBER EATS,13.24
+18/08/2025,PRET A MANGER,9.74
+18/08/2025,TFL TRAVEL CHARGE,6.40
+18/08/2025,WWW.THETIMES.CO.UK,4.99
+19/08/2025,CKO*SUNDAY*SOMA SOHO,62.64
+19/08/2025,MOUNTAIN,173.82
+19/08/2025,TFL TRAVEL CHARGE,4.65
+19/08/2025,THE DEVONSHIRE,13.80
+20/08/2025,7031622 Marquis Of West,71.95
+20/08/2025,LIME*PASS XR67,3.99
+20/08/2025,UBER EATS,12.98
+21/08/2025,PRET A MANGER,8.74
+21/08/2025,TFL TRAVEL CHARGE,5.80
+22/08/2025,DELIVEROO 686564,17.28
+23/08/2025,DOJO*THE BOUNDARY,14.20
+23/08/2025,LIME*PASS XR67,6.99
+23/08/2025,The Sporting Page,76.50
+23/08/2025,UBER EATS,35.12
+24/08/2025,BOLT,15.80
+24/08/2025,INTEREST CHARGE,107.69
+24/08/2025,ROOFOODS LTD,7.99
+25/08/2025,SAINSBURY'S,46.41
+26/08/2025,TFL TRAVEL CHARGE,6.40
+27/08/2025,FENTIMAN ARMS,29.70
+28/08/2025,Carpenters Arms,63.00
+28/08/2025,TFL TRAVEL CHARGE,5.80
+29/08/2025,DELIVEROO 207008,16.97
+01/09/2025,TFL TRAVEL CHARGE,6.40
+01/09/2025,UBER EATS,16.18
+01/09/2025,UBER ONE,4.99
+02/09/2025,PRET A MANGER,8.74
+02/09/2025,TFL TRAVEL CHARGE,7.55
+04/09/2025,OPTICAL CENTER W1T,35.00
+04/09/2025,TFL TRAVEL CHARGE,2.90
+04/09/2025,UBER EATS,19.29
+05/09/2025,DELIVEROO 686564,24.75
+05/09/2025,PRIME VIDEO RENT,4.99
+06/09/2025,5752 -ANGLESEA ARMS,61.00
+06/09/2025,CAFE FRANCOIS,58.51
+06/09/2025,LIME*PASS XR67,3.99
+06/09/2025,TFL TRAVEL CHARGE,5.70
+06/09/2025,UBER TRIP,15.94
+07/09/2025,AMZNMKTPLACE,36.36
+07/09/2025,DELIVEROO 207008,31.99
+08/09/2025,LIME*PASS XR67,6.99
+09/09/2025,DELIVEROO 207008,28.03
+09/09/2025,PLAYSTATION NETWORK,3.49
+09/09/2025,SAINSBURY'S,28.18
+10/09/2025,FENTIMAN ARMS,14.90
+11/09/2025,CAFE DEL MARSH,26.00
+11/09/2025,Duke Of Sussex Waterloo,41.66
+11/09/2025,LIME*RIDE XR67,0.54
+11/09/2025,TFL TRAVEL CHARGE,3.00
+11/09/2025,VOI TECHNOLOGY AB,0.80
+12/09/2025,DELIVEROO 207008,35.26
+12/09/2025,FENTIMAN ARMS,37.00
+12/09/2025,LIME*RIDE XR67,2.87
+13/09/2025,ARAGON HOUSE,15.50
+13/09/2025,UBER TRIP,41.48
+13/09/2025,White Horse,250.15
+14/09/2025,DELIVEROO 686564,49.04
+15/09/2025,AMAZON.CO.UK,15.85
+15/09/2025,PRET A MANGER,9.49
+15/09/2025,TFL TRAVEL CHARGE,6.40
+15/09/2025,UBER EATS,13.09
+16/09/2025,TFL TRAVEL CHARGE,5.80
+16/09/2025,WWW.HEDONISM.CO.UK,125.00
+17/09/2025,FENTIMAN ARMS,36.95
+17/09/2025,UBER EATS,15.86
+18/09/2025,BAD BOY PIZZA,12.00
+18/09/2025,CROWN AND ANCHOR,63.20
+18/09/2025,DELIVEROO 207008,29.47
+18/09/2025,SEVEN DIALS MARKET,16.10
+18/09/2025,TESCO STORE,8.25
+18/09/2025,TFL TRAVEL CHARGE,5.80
+18/09/2025,WWW.THETIMES.CO.UK,4.99
+19/09/2025,FENTIMAN ARMS,30.10
+20/09/2025,ZIPCAR UK LIMITED,26.20
+21/09/2025,UBER TRIP,54.23
+24/09/2025,INTEREST CHARGE,123.03
+24/09/2025,ROOFOODS LTD,7.99
+27/09/2025,TFL TRAVEL CHARGE,13.90
+27/09/2025,UBER TRIP,40.56
+28/09/2025,TESCO STORE,12.45
+28/09/2025,UBER EATS,31.59
+29/09/2025,TFL TRAVEL CHARGE,7.55
+30/09/2025,Carpenters Arms,16.00
+30/09/2025,TESCO STORE,2.95
+30/09/2025,TFL TRAVEL CHARGE,5.80
+01/10/2025,TFL TRAVEL CHARGE,5.80
+01/10/2025,UBER ONE,4.99
+02/10/2025,DELIVEROO 207008,32.19
+02/10/2025,FENTIMAN ARMS,14.90
+02/10/2025,PRIORITY PASS,48.00
+03/10/2025,Barrow Boy & Banker,77.80
+03/10/2025,TFL TRAVEL CHARGE,2.90
+03/10/2025,UBER ONE,15.00
+04/10/2025,BATTERSEA BARGE,78.25
+04/10/2025,CO-OP,3.20
+04/10/2025,FOREST,4.53
+04/10/2025,JUST EAT.CO.UK LTD,14.80
+04/10/2025,St Christophers 121,33.35
+04/10/2025,Taxiworld,26.00
+04/10/2025,UBER TRIP,31.37
+05/10/2025,FOREST,3.95
+05/10/2025,UBER EATS,15.01
+05/10/2025,WM Morrison Supermarket,61.66
+05/10/2025,ZETTLE *LARYN CAFE BAR,20.40
+06/10/2025,TFL TRAVEL CHARGE,5.80
+07/10/2025,TFL TRAVEL CHARGE,5.80
+09/10/2025,Alberts Schloss London,21.20
+09/10/2025,DELIVEROO 207008,18.22
+09/10/2025,TFL TRAVEL CHARGE,4.65
+10/10/2025,DELIVEROO 207008,15.19
+10/10/2025,LIME*RIDE XR67,2.16
+10/10/2025,SAINSBURY'S,18.93
+12/10/2025,DELIVEROO 207008,31.16
+12/10/2025,LIDL LON STOCKWELL,17.06
+12/10/2025,LIME*PASS XR67,3.99
+13/10/2025,WINEDROPS,12.99
+14/10/2025,APPLE.COM/BILL,14.99
+14/10/2025,TFL TRAVEL CHARGE,6.40
+16/10/2025,DELIVEROO,13.22
+16/10/2025,FENTIMAN ARMS,44.70
+16/10/2025,PRET A MANGER,9.74
+16/10/2025,TFL TRAVEL CHARGE,6.40
+17/10/2025,DELIVEROO,15.14
+17/10/2025,EASYFRAME,33.00
+17/10/2025,THEPRINTSPACE,21.06
+18/10/2025,DELIVEROO,31.00
+18/10/2025,WWW.THETIMES.CO.UK,4.99
+19/10/2025,UBER EATS,28.55
+20/10/2025,BOOTS,22.95
+20/10/2025,TESCO STORE,4.85
+20/10/2025,TFL TRAVEL CHARGE,5.80
+21/10/2025,DOJO*THE STARMAN,27.60
+21/10/2025,LIME*RIDE XR67,2.89
+21/10/2025,TFL TRAVEL CHARGE,5.70
+22/10/2025,AMAZON.CO.UK,89.99
+23/10/2025,Carpenters Arms,31.45
+23/10/2025,PRET A MANGER,9.00
+23/10/2025,TFL TRAVEL CHARGE,5.80
+23/10/2025,ZETTLE *THE BLUE MAID,15.20
+24/10/2025,DELIVEROO,45.86
+24/10/2025,Duke of Wellington,30.45
+24/10/2025,Hereford - South Kensin,44.60
+24/10/2025,INTEREST CHARGE,126.65
+24/10/2025,LIME*PASS XR67,3.99
+24/10/2025,ROOFOODS LTD,7.99
+24/10/2025,UBER EATS,18.15
+25/10/2025,TFL TRAVEL CHARGE,5.80
+25/10/2025,UBER TRIP,17.98
+26/10/2025,JUST EAT.CO.UK LTD,17.32
+26/10/2025,LIME*RIDE XR67,4.61
+26/10/2025,SAINSBURY'S,36.73
+26/10/2025,TRAINLINE Trainline,27.94
+26/10/2025,UBER EATS,16.07
+27/10/2025,PRET A MANGER,9.00
+27/10/2025,TFL TRAVEL CHARGE,5.80
+28/10/2025,FENTIMAN ARMS,29.90
+28/10/2025,TFL TRAVEL CHARGE,6.40
+29/10/2025,CASA PASTOR,77.66
+29/10/2025,DOJO*MARE STREET MARKET,13.20
+29/10/2025,TFL TRAVEL CHARGE,2.90
+30/10/2025,DELIVEROO,21.51
+30/10/2025,TFL TRAVEL CHARGE,2.90
+31/10/2025,FENTIMAN ARMS,16.40
+31/10/2025,LS BLEECKER,13.80
+31/10/2025,SEVEN DIALS MARKET,15.60
+31/10/2025,TFL TRAVEL CHARGE,4.65
+31/10/2025,THE TOP SECRET COMEDY C,18.70
+01/11/2025,DOJO*TARO JAPANESE REST,46.20
+01/11/2025,FENTIMAN ARMS,57.60
+01/11/2025,LIME*PASS XR67,3.99
+01/11/2025,UBER LIME,4.93
+01/11/2025,YOUNGS.CO.UK,7.60
+02/11/2025,TFL TRAVEL CHARGE,4.10
+02/11/2025,THE WHEATSHEAF,121.39
+03/11/2025,PRET A MANGER,9.00
+03/11/2025,TFL TRAVEL CHARGE,6.40
+04/11/2025,DOJO*FITZROVIA BELLE,55.85
+04/11/2025,TFL TRAVEL CHARGE,2.90
+05/11/2025,FENTIMAN ARMS,29.95
+05/11/2025,UBER TRIP,16.05
+06/11/2025,7219 - MARLBOROUGH ARMS,30.70
+06/11/2025,CROWN AND ANCHOR,47.69
+06/11/2025,DELIVEROO,13.99
+06/11/2025,LIME*RIDE XR67,3.16
+06/11/2025,TFL TRAVEL CHARGE,5.80
+07/11/2025,TRAINLINE Trainline,197.58
+07/11/2025,UBER TRIP,9.74
+07/11/2025,PRET A MANGER,8.24
+11/11/2025,WINEDROPS,0.00
+12/11/2025,WWW.BLOOMANDWILD.COM,34.50
+13/11/2025,FENTIMAN ARMS,15.20
+13/11/2025,TFL TRAVEL CHARGE,2.80
+14/11/2025,DELIVEROO,21.50
+14/11/2025,PRIME VIDEO RENT,4.99
+15/11/2025,YOUNGS.CO.UK,53.20
+16/11/2025,GOPUFF,25.05
+16/11/2025,UBER EATS,22.28
+17/11/2025,PRET A MANGER,9.00
+17/11/2025,TFL TRAVEL CHARGE,6.40
+18/11/2025,TFL TRAVEL CHARGE,6.40
+18/11/2025,WWW.THETIMES.CO.UK,4.99
+20/11/2025,BILTONG BOSS EUSTON,13.00
+20/11/2025,Founders Hall,12.20
+20/11/2025,TFL TRAVEL CHARGE,2.90
+22/11/2025,5817 - FOUNTAIN HOUSE,13.10
+22/11/2025,DOJO*FAC251 LIMITED,72.00
+22/11/2025,LUCKY CHINESE RESTAURA,20.00
+23/11/2025,DELIVEROO,11.60
+23/11/2025,TFL TRAVEL CHARGE,2.90
+23/11/2025,UBER TRIP,7.18
+24/11/2025,INTEREST CHARGE,144.61
+24/11/2025,PRET A MANGER,9.74
+24/11/2025,ROOFOODS LTD,7.99
+24/11/2025,TFL TRAVEL CHARGE,5.80
+25/11/2025,FENTIMAN ARMS,44.70
+25/11/2025,TFL TRAVEL CHARGE,6.40
+25/11/2025,UBER EATS,17.83
+26/11/2025,DOJO*AKOKO,221.95
+26/11/2025,LIME*PASS XR67,4.49
+26/11/2025,LIME*RIDE XR67,0.62
+26/11/2025,ONE TUN,15.70
+26/11/2025,TFL TRAVEL CHARGE,2.90
+26/11/2025,TST-MR FOGGS HOUSE OF,15.60
+26/11/2025,UBER EATS,16.02
+27/11/2025,3CPAYMENT*O2 SHEPHERDS,25.00
+27/11/2025,LIME*RIDE XR67,2.55
+27/11/2025,TFL TRAVEL CHARGE,6.40
+27/11/2025,THE HAWKS NEST,32.30
+28/11/2025,DELIVEROO,19.98
+28/11/2025,FENTIMAN ARMS,22.65
+28/11/2025,MOVEMBERUK,50.00
+28/11/2025,SAINSBURY'S,2.05
+28/11/2025,Sindercombe Social,23.70
+28/11/2025,TFL TRAVEL CHARGE,5.20
+28/11/2025,UBER TRIP,25.32
+29/11/2025,APPLE.COM/BILL,4.99
+29/11/2025,DELIVEROO,19.22
+29/11/2025,LIME*RIDE XR67,2.24
+29/11/2025,TFL TRAVEL CHARGE,4.85
+30/11/2025,TRIP.COM,72.90
+01/12/2025,PRET A MANGER,9.74
+01/12/2025,TFL TRAVEL CHARGE,5.80
+01/12/2025,UBER EATS,19.57
+02/12/2025,TFL TRAVEL CHARGE,5.70
+03/12/2025,TFL TRAVEL CHARGE,11.60
+04/12/2025,Cask and Glass,32.40
+04/12/2025,PHOENIX,38.40
+04/12/2025,TFL TRAVEL CHARGE,5.80
+05/12/2025,THE LIGHTHOUSE,96.25
+05/12/2025,UBER EATS,25.62
+06/12/2025,BOLT SERVICES UK LTD,14.41
+06/12/2025,COAT AND BADGE,45.50
+06/12/2025,LIME*RIDE XR67,4.29
+06/12/2025,MAINPIE LIMITED,63.70
+06/12/2025,TFL TRAVEL CHARGE,2.70
+06/12/2025,UBER EATS,17.19
+07/12/2025,AMZNMKTPLACE,8.99
+07/12/2025,MAINPIE LIMITED,26.80
+07/12/2025,UBER TRIP,21.95
+08/12/2025,TFL TRAVEL CHARGE,6.40
+08/12/2025,UBER EATS,14.86
+09/12/2025,TFL TRAVEL CHARGE,8.60
+10/12/2025,GOPUFF,34.31
+10/12/2025,MCDONALDS WARREN STREET,10.27
+11/12/2025,MCDONALDS WARREN STREET,2.29
+11/12/2025,TFL TRAVEL CHARGE,7.45
+11/12/2025,WAXY O CONNORS LONDON,15.45
+11/12/2025,ZETTLE *202 PUB CO LTD,36.00
+12/12/2025,De Hems Dutch Cafe Bar,14.40
+12/12/2025,DELIVEROO,14.09
+12/12/2025,EMMA APP,9.99
+12/12/2025,OLD TOWN 97,28.60
+14/12/2025,DELIVEROO,28.06
+14/12/2025,UBER EATS,18.00
+15/12/2025,M&S TOTTENHAM COURT ROA,8.00
+15/12/2025,TFL TRAVEL CHARGE,6.40
+16/12/2025,DOJO*THE PARTRIDGE,49.55
+16/12/2025,LIME*RIDE XR67,2.32
+16/12/2025,M&S BROMLEY,9.30
+16/12/2025,TFL TRAVEL CHARGE,8.80
+17/12/2025,BREWDOG WATERLOO,25.35
+17/12/2025,DINES* SKATE SOMERSET,30.00
+17/12/2025,TFL TRAVEL CHARGE,5.70
+17/12/2025,UBER EATS,15.98
+17/12/2025,UBER TRIP,23.92
+17/12/2025,VICTORIA - MUNICH CRICK,156.54
+18/12/2025,PRET A MANGER,10.25
+18/12/2025,TFL TRAVEL CHARGE,8.60
+18/12/2025,ZETTLE *202 PUB CO LTD,74.75
+19/12/2025,3CPAYMENT*DEAN STREET T,48.09
+19/12/2025,ECC CHINATOWN LTD,33.75
+19/12/2025,LIME*RIDE XR67,2.32
+19/12/2025,LS SUPER8 KILN,134.22
+19/12/2025,MCDONALDS WARREN STREET,10.27
+19/12/2025,TFL TRAVEL CHARGE,5.70
+19/12/2025,THE BLUE POSTS,13.60
+20/12/2025,EAST DULWICH TAVERN,43.30
+20/12/2025,LIME*RIDE XR67,5.62
+20/12/2025,TFL TRAVEL CHARGE,1.85
+20/12/2025,TRINITY ARMS,14.70
+21/12/2025,DELIVEROO,39.67
+21/12/2025,EAST DULWICH TAVERN,29.00
+21/12/2025,MARKS AND SPENCER PADDI,10.50
+21/12/2025,SP ENGLISH PEWTER,44.50
+21/12/2025,SP LOCK CO. HATTER,45.00
+21/12/2025,TFL TRAVEL CHARGE,2.90
+21/12/2025,URBANMERCHANTS.CO.UK,44.25
+24/12/2025,INTEREST CHARGE,43.01
+24/12/2025,ROOFOODS LTD,7.99
+26/12/2025,SP WORLDOFBOOKS.COM,23.40
+27/12/2025,AMZNMKTPLACE,6.58
+27/12/2025,WM MORRISONS STORES,3.90
+28/12/2025,AMZNMKTPLACE,51.99
+28/12/2025,APPLE.COM/BILL,0.99
+29/12/2025,APPLE.COM/BILL,4.99
+31/12/2025,SP HEALTHY METAL,3.95
+31/12/2025,TRAINLINE Trainline,32.89
+02/01/2026,Windsor Castle,115.75
+02/01/2026,TFL TRAVEL CHARGE,2.90
+02/01/2026,WM MORRISONS STORES,5.50
+03/01/2026,LS THE MARLBOROUGH,114.21
+03/01/2026,RIVERSIDE,22.95
+03/01/2026,UBER EATS,13.94
+04/01/2026,AMZN MKTP UK,51.86
+04/01/2026,DELIVEROO,25.15
+05/01/2026,PRET A MANGER,9.00
+05/01/2026,TFL TRAVEL CHARGE,6.40
+05/01/2026,YOUNG VIC COMPANY,15.00
+06/01/2026,TFL TRAVEL CHARGE,8.60
+07/01/2026,WINEDROPS,15.98
+08/01/2026,TFL TRAVEL CHARGE,5.80
+08/01/2026,VAGABOND VICTORIA,39.50
+09/01/2026,UBER TRIP,9.32
+11/01/2026,Sands End,84.65
+11/01/2026,DELIVEROO,12.98
+11/01/2026,LIME*RIDE XR67,1.51
+11/01/2026,TFL TRAVEL CHARGE,5.80
+11/01/2026,UBER TRIP,17.42
+12/01/2026,EMMA APP,9.99
+12/01/2026,TFL TRAVEL CHARGE,6.40
+13/01/2026,TRAINLINE Trainline,6.45
+13/01/2026,TFL TRAVEL CHARGE,2.90
+14/01/2026,GOPUFF,19.04
+14/01/2026,MATTRESSNEXTDAY,379.00
+14/01/2026,TFL TRAVEL CHARGE,3.50
+15/01/2026,7219 - MARLBOROUGH ARMS,38.66
+15/01/2026,PRET A MANGER,9.25
+15/01/2026,TFL TRAVEL CHARGE,5.70
+16/01/2026,UBER EATS,17.62
+16/01/2026,UBER TRIP,15.50
+16/01/2026,WWW.BREWDOG.COM,72.00
+16/01/2026,TFL TRAVEL CHARGE,2.70
+17/01/2026,FENTIMAN ARMS,31.75
+17/01/2026,TFL TRAVEL CHARGE,2.70
+18/01/2026,UBER EATS,19.43
+18/01/2026,LIME*PASS XR67,3.99
+18/01/2026,WAITROSE BATTERSEA,30.70
+19/01/2026,TFL TRAVEL CHARGE,6.40
+20/01/2026,TFL TRAVEL CHARGE,2.90
+20/01/2026,TRAINLINE Trainline,8.50
+21/01/2026,UBER TRIP,15.72
+22/01/2026,TFL TRAVEL CHARGE,5.70
+23/01/2026,DELIVEROO,32.40
+23/01/2026,FENTIMAN ARMS,29.80
+23/01/2026,TESCO STORE,23.70
+24/01/2026,TST-LA CABANA,47.40
+24/01/2026,Churchill Arms,15.65
+24/01/2026,LIME*PASS XR67,3.99
+24/01/2026,LIME*RIDE XR67,2.31
+24/01/2026,ROOFOODS LTD,7.99
+24/01/2026,Sun In Splendour,16.30
+24/01/2026,THE PRINCESS ROYAL,15.60
+24/01/2026,UBER TRIP,19.35
+25/01/2026,SP INSERIF,37.35
+26/01/2026,TFL TRAVEL CHARGE,5.80
+28/01/2026,APPLE.COM/BILL,0.99
+28/01/2026,UBER EATS,13.32
+29/01/2026,APPLE.COM/BILL,4.99
+29/01/2026,TFL TRAVEL CHARGE,10.50
+30/01/2026,UBER TRIP,2.50
+01/02/2026,DELIVEROO,13.99
+01/02/2026,TFL TRAVEL CHARGE,13.90
+01/02/2026,UBER TRIP,16.92
+03/02/2026,DOJO*THE STARMAN,34.50
+03/02/2026,TFL TRAVEL CHARGE,7.55
+04/02/2026,GOPUFF,36.23
+05/02/2026,DOJO*FITZROVIA BELLE,121.80
+05/02/2026,TFL TRAVEL CHARGE,5.70
+06/02/2026,Duke of Wellington,40.10
+06/02/2026,LIME*PASS XR67,3.99
+07/02/2026,DELIVEROO,42.49
+07/02/2026,CKO*SUNDAY*PLAZA KHAO G,40.21
+07/02/2026,7162 - ANCHOR - BANKSIDE,22.65
+07/02/2026,LIME*PASS XR67,3.99
+07/02/2026,UBER TRIP,14.88
+08/02/2026,DELIVEROO,16.70
+08/02/2026,SAINSBURY'S NINE ELMS,49.37
+09/02/2026,THE THREE SWANS,110.00
+09/02/2026,TFL TRAVEL CHARGE,6.40
+09/02/2026,TRAINLINE Trainline,64.39
+10/02/2026,Duke of Wellington,51.10
+10/02/2026,LIME*PASS XR67,3.99
+10/02/2026,TFL TRAVEL CHARGE,5.70
+12/02/2026,LS THE GRAFTON ARMS,36.51
+12/02/2026,MCDONALDS WARREN STREET,10.57
+12/02/2026,TFL TRAVEL CHARGE,5.80
+12/02/2026,ZETTLE *202 PUB CO LTD,24.00
+13/02/2026,DOJO*MC AND SONS VAUXHA,73.13
+13/02/2026,LIME*PASS XR67,3.99
+14/02/2026,COAT AND BADGE,62.80
+14/02/2026,DOJO*MC AND SONS VAUXHA,14.40
+14/02/2026,LIME*RIDE XR67,7.60
+14/02/2026,SAINSBURY'S,6.80
+14/02/2026,TFL TRAVEL CHARGE,5.40
+15/02/2026,FENTIMAN ARMS,91.62
+15/02/2026,DOJO*MC AND SONS VAUXHA,21.60
+15/02/2026,LIME*RIDE XR67,1.99
+15/02/2026,UBER EATS,22.96
+16/02/2026,TFL TRAVEL CHARGE,5.80
+17/02/2026,EMMA APP,9.99
+17/02/2026,GOPUFF,37.53
+17/02/2026,TFL TRAVEL CHARGE,6.40
+18/02/2026,DELIVEROO,24.48
+18/02/2026,FENTIMAN ARMS,38.50
+19/02/2026,Marquis Of Granby,19.85
+19/02/2026,PRET A MANGER,9.25
+19/02/2026,TFL TRAVEL CHARGE,16.30
+20/02/2026,DMN* MCSONSVAUXHALL,150.00
+21/02/2026,DELIVEROO,9.95
+21/02/2026,MCDONALDS WARREN STREET,10.57
+21/02/2026,TFL TRAVEL CHARGE,2.90
+21/02/2026,UBER TRIP,10.11
+22/02/2026,DELIVEROO,14.99
+22/02/2026,THE THREE SWANS,31.85
+22/02/2026,TFL TRAVEL CHARGE,2.90
+22/02/2026,UBER TRIP,11.09
+23/02/2026,AMAZON.CO.UK,59.96
+23/02/2026,TFL TRAVEL CHARGE,5.80
+24/02/2026,DELIVEROO,12.69
+24/02/2026,ROOFOODS LTD,7.99
+24/02/2026,TFL TRAVEL CHARGE,8.60
+26/02/2026,TFL TRAVEL CHARGE,6.40
+27/02/2026,BRICIOLE BRICIOLE,67.50
+27/02/2026,UBER EATS,35.26
+27/02/2026,UBER TRIP,17.95
+27/02/2026,TFL TRAVEL CHARGE,4.65
+28/02/2026,Boisdale Ltd,103.85
+28/02/2026,DOJO*THE KERFIELD ARMS,68.25
+28/02/2026,Duke of Wellington,43.05
+28/02/2026,APPLE.COM/BILL,5.98
+28/02/2026,LIME*PASS XR67,3.99
+28/02/2026,LIME*RIDE XR67,6.28
+28/02/2026,LUCKY VOICE SOHO,14.18
+01/03/2026,THE WATERMAN'S ARMS,85.19
+01/03/2026,WHITE HART BARNES,26.45
+01/03/2026,TESCO STORE,1.85
+01/03/2026,TFL TRAVEL CHARGE,6.00
+01/03/2026,LIME*PASS XR67,3.99
+03/03/2026,MCDONALDS OXFORD STREET,9.47
+03/03/2026,TFL TRAVEL CHARGE,6.10
+03/03/2026,LIME*PASS XR67,3.99
+05/03/2026,MCDONALDS WARREN STREET,10.57
+05/03/2026,TFL TRAVEL CHARGE,6.20
+06/03/2026,CKO*SUNDAY*SENOR CEVICH,216.00
+06/03/2026,FENTIMAN ARMS,15.45
+06/03/2026,TFL TRAVEL CHARGE,3.10
+07/03/2026,DOJO*THE CARLTON TAVERN,60.00
+07/03/2026,TASTE OF LAHORE,12.50
+07/03/2026,TFL TRAVEL CHARGE,6.60
+07/03/2026,TST-CAHOOTS SOHO,14.80
+08/03/2026,DOJO*MC AND SONS VAUXHA,76.35
+08/03/2026,LIME*RIDE XR67,7.61
+09/03/2026,UBER EATS,16.58
+09/03/2026,TFL TRAVEL CHARGE,6.20
+10/03/2026,THE TEN BELLS,31.00
+10/03/2026,UBER TRIP,21.93
+10/03/2026,TFL TRAVEL CHARGE,6.20
+10/03/2026,PRET A MANGER,4.50
+12/03/2026,THE DEVONSHIRE,14.30
+12/03/2026,TST-TOBA,162.56
+12/03/2026,DOJO*NEON 194,7.82
+12/03/2026,TFL TRAVEL CHARGE,6.20
+12/03/2026,WWW.BLOOMANDWILD.COM,29.70
+13/03/2026,DOJO*BELOW STONE NEST,22.50
+14/03/2026,7781 -GEORGE SOUTHWARK,45.95
+14/03/2026,DOJO*MC AND SONS VAUXHA,28.80
+14/03/2026,DOJO*THE HORSESHOE INN,14.15
+14/03/2026,LS AGORA,35.40
+14/03/2026,UBER TRIP,7.91
+14/03/2026,LIME*PASS XR67,3.99
+15/03/2026,UBER EATS,15.29
+16/03/2026,TFL TRAVEL CHARGE,6.70
+17/03/2026,DELIVEROO,15.99
+17/03/2026,TFL TRAVEL CHARGE,8.90
+18/03/2026,FENTIMAN ARMS,15.40
+19/03/2026,TRAINLINE Trainline,32.44
+19/03/2026,TFL TRAVEL CHARGE,3.10`;
+
+  const txns = parseCSV(allData);
+  const buckets = splitByMonth(txns);
+  let count = 0;
+  for (const [key, monthTxns] of Object.entries(buckets)) {
+    state.months[key] = computeMonth(monthTxns, key);
+    count += monthTxns.length;
+  }
+  saveState();
+  const nMonths = Object.keys(buckets).length;
+  showToast(`✓ Loaded ${count} txns across ${nMonths} months (2024–2026)`);
+  switchTab('overview');
+}
+
+// ── NAVIGATION ──
+function switchTab(tab) {
+  ['overview','trends','import','settings'].forEach(t => {
+    document.getElementById('view-' + t).classList.toggle('active', t === tab);
+    document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+  });
+  if (tab === 'overview') renderOverview();
+  if (tab === 'trends') renderTrends();
+  if (tab === 'settings') renderSettings();
+}
+
+// ── OVERVIEW ──
+function renderOverview() {
+  const months = Object.keys(state.months).sort().reverse();
+  const el = document.getElementById('overview-content');
+
+  if (!months.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📊</div><div class="empty-title">No data yet</div><div class="empty-sub">Tap Import to load your first month of transactions</div></div>`;
+    document.getElementById('topbar-month').textContent = 'No data';
+    return;
+  }
+
+  const latest = months[0];
+  const prev = months[1];
+  const latestData = state.months[latest];
+  const d = latestData;
+  const budget = state.budgets;
+  const pct = budget.total ? ((d.total / budget.total) * 100).toFixed(0) : null;
+
+  // Format month label
+  const [yr, mo] = latest.split('-');
+  const monthName = new Date(parseInt(yr), parseInt(mo)-1).toLocaleString('en-GB', { month: 'long', year: 'numeric' });
+  document.getElementById('topbar-month').textContent = monthName;
+
+  // Build alerts
+  const alerts = [];
+  if (budget.total && d.total > budget.total) alerts.push({ type: 'red', title: 'Budget exceeded', desc: `Total spend £${d.total.toFixed(0)} is £${(d.total - budget.total).toFixed(0)} over your £${budget.total} monthly budget.` });
+  if (budget.dining && (d.cats['Pubs & Dining'] || 0) > budget.dining) alerts.push({ type: 'red', title: 'Dining over budget', desc: `£${(d.cats['Pubs & Dining']||0).toFixed(0)} spent vs £${budget.dining} budget.` });
+  if (budget.delivery && (d.cats['Food Delivery'] || 0) > budget.delivery) alerts.push({ type: 'amber', title: 'Delivery spending high', desc: `£${(d.cats['Food Delivery']||0).toFixed(0)} on food delivery vs £${budget.delivery} target.` });
+  if (d.cats['Interest'] > 0) alerts.push({ type: 'red', title: 'Interest charge detected', desc: `£${d.cats['Interest'].toFixed(2)} in interest — balance not cleared.` });
+
+  // YoY comparison if previous month exists
+  if (prev) {
+    const pd = state.months[prev];
+    const diningDiff = ((d.cats['Pubs & Dining']||0) - (pd.cats['Pubs & Dining']||0));
+    const delivDiff = ((d.cats['Food Delivery']||0) - (pd.cats['Food Delivery']||0));
+    if (diningDiff > 100) alerts.push({ type: 'amber', title: 'Dining up vs last month', desc: `£${Math.abs(diningDiff).toFixed(0)} more on pubs & dining than ${formatMonthKey(prev)}.` });
+    else if (diningDiff < -100) alerts.push({ type: 'green', title: 'Dining down vs last month', desc: `£${Math.abs(diningDiff).toFixed(0)} less on pubs & dining than ${formatMonthKey(prev)}. Good progress.` });
+    if (delivDiff > 50) alerts.push({ type: 'amber', title: 'Delivery trending up', desc: `£${Math.abs(delivDiff).toFixed(0)} more on delivery than ${formatMonthKey(prev)}.` });
+    else if (delivDiff < -30) alerts.push({ type: 'green', title: 'Delivery improving', desc: `£${Math.abs(delivDiff).toFixed(0)} less on delivery vs ${formatMonthKey(prev)}.` });
+  }
+  if (!alerts.length) alerts.push({ type: 'green', title: 'Looking good', desc: 'No budget alerts this month.' });
+
+  // Categories sorted by amount
+  const sortedCats = Object.entries(d.cats).sort((a,b) => b[1]-a[1]);
+  const maxCat = sortedCats[0]?.[1] || 1;
+
+  const prevTotal = prev ? state.months[prev].total : null;
+  const totalDiff = prevTotal ? d.total - prevTotal : null;
+
+  el.innerHTML = `
+    <div class="hero">
+      <div class="hero-label">Total spend — ${monthName}</div>
+      <div class="hero-amount"><span>£</span>${d.total.toFixed(0)}</div>
+      <div class="hero-sub">
+        ${pct ? `<b>${pct}%</b> of £${budget.total} budget` : 'No budget set'}
+        ${totalDiff !== null ? ` &nbsp;·&nbsp; <b style="color:${totalDiff>0?'var(--red)':'var(--green)'}">${totalDiff>0?'+':''}£${totalDiff.toFixed(0)}</b> vs ${formatMonthKey(prev)}` : ''}
+      </div>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi">
+        <div class="kpi-label">Pubs & Dining</div>
+        <div class="kpi-val ${(d.cats['Pubs & Dining']||0) > (budget.dining||9999) ? 'red' : ''}">£${(d.cats['Pubs & Dining']||0).toFixed(0)}</div>
+        <div class="kpi-sub">${budget.dining ? `Budget £${budget.dining}` : '—'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Food Delivery</div>
+        <div class="kpi-val ${(d.cats['Food Delivery']||0) > (budget.delivery||9999) ? 'amber' : ''}">£${(d.cats['Food Delivery']||0).toFixed(0)}</div>
+        <div class="kpi-sub">${budget.delivery ? `Budget £${budget.delivery}` : '—'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Transport</div>
+        <div class="kpi-val">£${(d.cats['Transport']||0).toFixed(0)}</div>
+        <div class="kpi-sub">${budget.transport ? `Budget £${budget.transport}` : '—'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Transactions</div>
+        <div class="kpi-val">${d.transactions.length}</div>
+        <div class="kpi-sub">this month</div>
+      </div>
+    </div>
+
+    <div class="alerts-section">
+      <div class="section-title">Alerts</div>
+      ${alerts.map(a => `<div class="alert-card ${a.type}"><div class="alert-title">${a.title}</div><div class="alert-desc">${a.desc}</div></div>`).join('')}
+    </div>
+
+    <div class="cat-section">
+      <div class="section-title">Breakdown</div>
+      ${sortedCats.map(([cat, amt]) => `
+        <div class="cat-row">
+          <div class="cat-header">
+            <span class="cat-name">${cat}</span>
+            <span class="cat-amt">£${amt.toFixed(0)}</span>
+          </div>
+          <div class="cat-bar-bg">
+            <div class="cat-bar-fill" style="width:${(amt/maxCat*100).toFixed(1)}%;background:${CATS[cat]?.color||'#556688'}"></div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function formatMonthKey(key) {
+  if (!key) return '';
+  const [yr, mo] = key.split('-');
+  return new Date(parseInt(yr), parseInt(mo)-1).toLocaleString('en-GB', { month: 'short', year: '2-digit' });
+}
+
+// ── TRENDS ──
+function renderTrends() {
+  const el = document.getElementById('trends-content');
+  const months = Object.keys(state.months).sort();
+  if (months.length < 2) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📈</div><div class="empty-title">Need more data</div><div class="empty-sub">Import at least 2 months to see trends</div></div>`;
+    return;
+  }
+
+  const maxTotal = Math.max(...months.map(m => state.months[m].total));
+  const maxDining = Math.max(...months.map(m => state.months[m].cats['Pubs & Dining'] || 0));
+  const maxDelivery = Math.max(...months.map(m => state.months[m].cats['Food Delivery'] || 0));
+
+  // Build bar chart rows
+  const totalBars = months.map(m => ({ label: formatMonthKey(m), val: state.months[m].total, h: state.months[m].total / maxTotal * 90 }));
+  const diningBars = months.map(m => ({ label: formatMonthKey(m), val: state.months[m].cats['Pubs & Dining'] || 0, h: (state.months[m].cats['Pubs & Dining']||0) / maxDining * 90 }));
+  const delivBars = months.map(m => ({ label: formatMonthKey(m), val: state.months[m].cats['Food Delivery'] || 0, h: (state.months[m].cats['Food Delivery']||0) / maxDelivery * 90 }));
+
+  const buildBars = (bars, color) => bars.map(b => `
+    <div class="bar-col">
+      <div class="bar-val">£${b.val.toFixed(0)}</div>
+      <div class="bar-fill" style="height:${b.h}px;background:${color}"></div>
+      <div class="bar-label">${b.label}</div>
+    </div>
+  `).join('');
+
+  // Trend table
+  const trendRows = months.slice().reverse().map((m, i, arr) => {
+    const d = state.months[m];
+    const prev = arr[i+1] ? state.months[arr[i+1]] : null;
+    const diff = prev ? ((d.total - prev.total)/prev.total*100).toFixed(0) : null;
+    return `<tr>
+      <td>${formatMonthKey(m)}</td>
+      <td>£${d.total.toFixed(0)}</td>
+      <td>£${(d.cats['Pubs & Dining']||0).toFixed(0)}</td>
+      <td>£${(d.cats['Food Delivery']||0).toFixed(0)}</td>
+      <td>${diff !== null ? `<span class="pill ${diff>0?'up':'dn'}">${diff>0?'+':''}${diff}%</span>` : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  // Averages
+  const avgTotal = months.reduce((a,m) => a + state.months[m].total, 0) / months.length;
+  const avgDining = months.reduce((a,m) => a + (state.months[m].cats['Pubs & Dining']||0), 0) / months.length;
+  const avgDelivery = months.reduce((a,m) => a + (state.months[m].cats['Food Delivery']||0), 0) / months.length;
+
+  el.innerHTML = `
+    <div class="chart-section">
+      <div class="chart-wrap">
+        <div class="chart-title">Monthly Total Spend</div>
+        <div class="bar-chart">${buildBars(totalBars, '#c8a96e')}</div>
+      </div>
+
+      <div class="chart-wrap">
+        <div class="chart-title">Pubs & Dining</div>
+        <div class="bar-chart">${buildBars(diningBars, '#e05c5c')}</div>
+      </div>
+
+      <div class="chart-wrap">
+        <div class="chart-title">Food Delivery</div>
+        <div class="bar-chart">${buildBars(delivBars, '#e67e22')}</div>
+      </div>
+
+      <div class="chart-wrap">
+        <div class="chart-title">Month-by-Month Summary</div>
+        <table class="trend-table">
+          <thead><tr><th>Month</th><th>Total</th><th>Dining</th><th>Delivery</th><th>MoM</th></tr></thead>
+          <tbody>${trendRows}</tbody>
+        </table>
+      </div>
+
+      <div class="kpi-row" style="border-top:1px solid var(--border);border-bottom:none">
+        <div class="kpi">
+          <div class="kpi-label">Avg Monthly</div>
+          <div class="kpi-val">£${avgTotal.toFixed(0)}</div>
+          <div class="kpi-sub">${months.length} months</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Avg Dining</div>
+          <div class="kpi-val red">£${avgDining.toFixed(0)}</div>
+          <div class="kpi-sub">per month</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Avg Delivery</div>
+          <div class="kpi-val amber">£${avgDelivery.toFixed(0)}</div>
+          <div class="kpi-sub">per month</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Months tracked</div>
+          <div class="kpi-val green">${months.length}</div>
+          <div class="kpi-sub">imported</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ── SETTINGS ──
+function renderSettings() {
+  document.getElementById('budget-total').value = state.budgets.total || '';
+  document.getElementById('budget-dining').value = state.budgets.dining || '';
+  document.getElementById('budget-delivery').value = state.budgets.delivery || '';
+  document.getElementById('budget-transport').value = state.budgets.transport || '';
+  document.getElementById('notif-toggle').checked = state.settings.notifEnabled || false;
+  document.getElementById('notif-day').value = state.settings.notifDay || 5;
+
+  const months = Object.keys(state.months).sort().reverse();
+  const container = document.getElementById('data-list-container');
+  if (!months.length) {
+    container.innerHTML = '<p style="font-size:11px;color:var(--text3);padding:12px 0">No data imported yet</p>';
+    return;
+  }
+  container.innerHTML = `<div class="data-list">${months.map(m => `
+    <div class="data-item">
+      <div>
+        <div class="data-item-month">${formatMonthKey(m)}</div>
+        <div style="font-size:10px;color:var(--text3)">${state.months[m].transactions.length} transactions</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="data-item-total">£${state.months[m].total.toFixed(0)}</div>
+        <button class="data-item-del" onclick="deleteMonth('${m}')">✕</button>
+      </div>
+    </div>
+  `).join('')}</div>`;
+}
+
+function saveBudgets() {
+  state.budgets.total = parseInt(document.getElementById('budget-total').value) || 0;
+  state.budgets.dining = parseInt(document.getElementById('budget-dining').value) || 0;
+  state.budgets.delivery = parseInt(document.getElementById('budget-delivery').value) || 0;
+  state.budgets.transport = parseInt(document.getElementById('budget-transport').value) || 0;
+  saveState();
+  showToast('Budgets saved');
+}
+
+function saveSettings() {
+  state.settings.notifDay = parseInt(document.getElementById('notif-day').value) || 5;
+  saveState();
+}
+
+function deleteMonth(key) {
+  if (confirm(`Delete data for ${formatMonthKey(key)}?`)) {
+    delete state.months[key];
+    saveState();
+    renderSettings();
+    showToast('Month deleted');
+  }
+}
+
+function clearAllData() {
+  if (confirm('Delete ALL spending data? This cannot be undone.')) {
+    state.months = {};
+    saveState();
+    renderSettings();
+    renderOverview();
+    showToast('All data cleared');
+  }
+}
+
+// ── NOTIFICATIONS ──
+async function requestNotification() {
+  if (!('Notification' in window)) { showToast('Notifications not supported'); return; }
+  const perm = await Notification.requestPermission();
+  if (perm === 'granted') {
+    state.settings.notifEnabled = true;
+    document.getElementById('notif-toggle').checked = true;
+    saveState();
+    scheduleReminder();
+    showToast('✓ Notifications enabled');
+  } else {
+    showToast('Permission denied — check Settings');
+  }
+}
+
+function toggleNotifications() {
+  state.settings.notifEnabled = document.getElementById('notif-toggle').checked;
+  saveState();
+  if (state.settings.notifEnabled) requestNotification();
+}
+
+function scheduleReminder() {
+  // Schedule a local notification-style reminder using a visible banner approach
+  // (PWA doesn't support truly scheduled notifications without a service worker)
+  // But we can check on load and fire if it's been more than 30 days
+  if (!state.settings.notifEnabled) return;
+  if (Notification.permission === 'granted') {
+    const months = Object.keys(state.months).sort();
+    if (!months.length) return;
+    const lastMonth = months[months.length - 1];
+    const [yr, mo] = lastMonth.split('-').map(Number);
+    const lastDate = new Date(yr, mo - 1, 1);
+    const now = new Date();
+    const diff = (now - lastDate) / (1000 * 60 * 60 * 24);
+    if (diff > 30) {
+      new Notification('Ledger — Time to import!', {
+        body: `You haven't imported data since ${formatMonthKey(lastMonth)}. Tap to open.`,
+        icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">📊</text></svg>'
+      });
+    }
+  }
+}
+
+// ── TOAST ──
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ── DRAG & DROP ──
+const dz = document.getElementById('drop-zone');
+['dragenter','dragover'].forEach(e => dz.addEventListener(e, ev => { ev.preventDefault(); dz.classList.add('dragover'); }));
+['dragleave','drop'].forEach(e => dz.addEventListener(e, ev => { ev.preventDefault(); dz.classList.remove('dragover'); }));
+dz.addEventListener('drop', ev => {
+  const file = ev.dataTransfer.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => { pendingCSV = e.target.result; previewCSV(pendingCSV); document.querySelector('.drop-zone-title').textContent = file.name; document.querySelector('.drop-zone-icon').textContent = '✅'; };
+  reader.readAsText(file);
+});
+
+// ── INIT ──
+loadState();
+const now = new Date();
+renderOverview();
+scheduleReminder();
+</script>
+</body>
+</html>
